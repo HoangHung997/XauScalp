@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../XauScalp.Domain/XauScalp.Domain.csproj" />
+    <ProjectReference Include="../XauScalp.Features/XauScalp.Features.csproj" />
+  </ItemGroup>
+</Project>
