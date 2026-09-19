@@ -1,5 +1,5 @@
 # MT5 protocol
 
-Protocol definitions between the MT5 bridge and the .NET application will live here.
+Current version: **mt5-wire-v1**.
 
-No credentials or live-trading defaults belong in protocol source files.
+The normative transport and recovery description is in [MT5_BRIDGE_PROTOCOL.md](MT5_BRIDGE_PROTOCOL.md).
