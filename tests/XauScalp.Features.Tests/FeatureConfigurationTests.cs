@@ -1,3 +1,4 @@
+using XauScalp.Domain;
 using XauScalp.MarketData;
 
 namespace XauScalp.Features.Tests;
