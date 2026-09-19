@@ -115,15 +115,15 @@ public sealed class Mt5GatewayAndRecorderTests
             new Mt5WireSymbolSpecification(
                 1,
                 "XAUUSD.G",
-                digits: 2,
-                point: 0.01m,
-                tickSize: 0.01m,
-                tickValue: 1m,
-                contractSize: 100m,
-                minVolume: 0.01m,
-                maxVolume: 100m,
-                volumeStep: 0.01m,
-                minStopDistance: 0.50m),
+                Digits: 2,
+                Point: 0.01m,
+                TickSize: 0.01m,
+                TickValue: 1m,
+                ContractSize: 100m,
+                MinVolume: 0.01m,
+                MaxVolume: 100m,
+                VolumeStep: 0.01m,
+                MinStopDistance: 0.50m),
         ];
 
         List<MarketEvent> events = await ReadGatewayAsync(messages);
