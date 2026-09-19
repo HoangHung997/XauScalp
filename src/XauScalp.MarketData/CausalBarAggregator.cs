@@ -104,7 +104,7 @@ public sealed class CausalBarAggregator
 
         if (!_forming.TryGetValue(timeframe, out MutableBar? current))
         {
-            MutableBar opened = MutableBar.Open(timeframe, bucketStart, tick.TimestampUtc, price);
+            MutableBar opened = MutableBar.Start(timeframe, bucketStart, tick.TimestampUtc, price);
             _forming[timeframe] = opened;
             output.Add(CreateBarEvent(tick, BarUpdateKind.Opened, opened.ToFormingState()));
             return;
@@ -126,7 +126,7 @@ public sealed class CausalBarAggregator
         ClosedBarState closed = current.ToClosedState(current.OpenTimeUtc + duration);
         output.Add(CreateBarEvent(tick, BarUpdateKind.Closed, closed));
 
-        MutableBar next = MutableBar.Open(timeframe, bucketStart, tick.TimestampUtc, price);
+        MutableBar next = MutableBar.Start(timeframe, bucketStart, tick.TimestampUtc, price);
         _forming[timeframe] = next;
         output.Add(CreateBarEvent(tick, BarUpdateKind.Opened, next.ToFormingState()));
     }
@@ -218,7 +218,7 @@ public sealed class CausalBarAggregator
 
         public long TickCount { get; private set; }
 
-        public static MutableBar Open(
+        public static MutableBar Start(
             BarTimeframe timeframe,
             DateTimeOffset openTimeUtc,
             DateTimeOffset tickTimestampUtc,
