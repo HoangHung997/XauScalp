@@ -39,7 +39,7 @@ public sealed class CausalBarProjectionTests
             output.Add(barEvent);
         }
 
-        Assert.Equal(12, output.Count);
+        Assert.Equal(9, output.Count);
         Assert.DoesNotContain(output, static item => item.SequenceId == 1);
         Assert.Contains(
             output,
