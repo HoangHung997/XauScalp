@@ -644,7 +644,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
     {
         string key = string.Join(
             "|",
-            FeatureNames.M1LivePrice,
+            EngineVersion,
             ContractVersions.FeatureSchemaV1,
             symbol,
             brokerSymbol,
