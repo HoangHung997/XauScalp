@@ -19,6 +19,12 @@ public enum MarketConnectionState
     Disconnected = 2,
 }
 
+public enum FeedSequenceAnomalyKind
+{
+    MissingRange = 0,
+    DuplicateOrOutOfOrder = 1,
+}
+
 public enum BarTimeframe
 {
     M1 = 1,
@@ -39,6 +45,7 @@ public enum BarUpdateKind
 [JsonDerivedType(typeof(BarEvent), "bar")]
 [JsonDerivedType(typeof(ConnectionStatusEvent), "connection")]
 [JsonDerivedType(typeof(SymbolSpecificationEvent), "symbolSpecification")]
+[JsonDerivedType(typeof(FeedGapEvent), "feedGap")]
 public abstract record MarketEvent
 {
     protected MarketEvent(
@@ -279,6 +286,33 @@ public sealed record ConnectionStatusEvent : MarketEvent
     public MarketConnectionState State { get; }
 
     public string? Reason { get; }
+}
+
+public sealed record FeedGapEvent : MarketEvent
+{
+    [JsonConstructor]
+    public FeedGapEvent(
+        string contractVersion,
+        DateTimeOffset timestampUtc,
+        long sequenceId,
+        string dataSourceId,
+        string symbol,
+        string brokerSymbol,
+        long expectedSequenceId,
+        long observedSequenceId,
+        FeedSequenceAnomalyKind kind)
+        : base(contractVersion, timestampUtc, null, sequenceId, dataSourceId, symbol, brokerSymbol)
+    {
+        ExpectedSequenceId = ContractGuard.NonNegative(expectedSequenceId, nameof(expectedSequenceId));
+        ObservedSequenceId = ContractGuard.NonNegative(observedSequenceId, nameof(observedSequenceId));
+        Kind = kind;
+    }
+
+    public long ExpectedSequenceId { get; }
+
+    public long ObservedSequenceId { get; }
+
+    public FeedSequenceAnomalyKind Kind { get; }
 }
 
 public sealed record SymbolSpecification
