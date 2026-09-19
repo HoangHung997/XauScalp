@@ -23,9 +23,9 @@ public sealed class CausalBarAggregationTests
         Assert.Equal(Utc(12, 1, 0, 0), closedM1.CloseTimeUtc);
 
         BarEvent openedM1 = Assert.Single(
-            boundary.Where(
-                static item => item.UpdateKind == BarUpdateKind.Opened
-                    && item.Bar.Timeframe == BarTimeframe.M1));
+            boundary,
+            static item => item.UpdateKind == BarUpdateKind.Opened
+                && item.Bar.Timeframe == BarTimeframe.M1);
         Assert.IsType<FormingBarState>(openedM1.Bar);
     }
 
@@ -58,18 +58,18 @@ public sealed class CausalBarAggregationTests
         IReadOnlyList<BarEvent> boundary = aggregator.Apply(Tick(2, midnight, 101m));
 
         BarEvent h1CloseEvent = Assert.Single(
-            boundary.Where(
-                static item => item.UpdateKind == BarUpdateKind.Closed
-                    && item.Bar.Timeframe == BarTimeframe.H1));
+            boundary,
+            static item => item.UpdateKind == BarUpdateKind.Closed
+                && item.Bar.Timeframe == BarTimeframe.H1);
 
         ClosedBarState h1Close = Assert.IsType<ClosedBarState>(h1CloseEvent.Bar);
         Assert.Equal(new DateTimeOffset(2026, 9, 19, 23, 0, 0, TimeSpan.Zero), h1Close.OpenTimeUtc);
         Assert.Equal(midnight, h1Close.CloseTimeUtc);
 
         BarEvent h1OpenEvent = Assert.Single(
-            boundary.Where(
-                static item => item.UpdateKind == BarUpdateKind.Opened
-                    && item.Bar.Timeframe == BarTimeframe.H1));
+            boundary,
+            static item => item.UpdateKind == BarUpdateKind.Opened
+                && item.Bar.Timeframe == BarTimeframe.H1);
         Assert.Equal(midnight, h1OpenEvent.Bar.OpenTimeUtc);
     }
 
@@ -95,9 +95,9 @@ public sealed class CausalBarAggregationTests
 
         ClosedBarState closed = Assert.IsType<ClosedBarState>(
             Assert.Single(
-                later.Where(
-                    static item => item.UpdateKind == BarUpdateKind.Closed
-                        && item.Bar.Timeframe == BarTimeframe.M1))
+                later,
+                static item => item.UpdateKind == BarUpdateKind.Closed
+                    && item.Bar.Timeframe == BarTimeframe.M1)
                 .Bar);
 
         Assert.Equal(Utc(12, 1, 0, 0), closed.CloseTimeUtc);
@@ -115,9 +115,9 @@ public sealed class CausalBarAggregationTests
         IReadOnlyList<BarEvent> third = aggregator.Apply(Tick(3, timestamp, 99m));
 
         BarEvent update = Assert.Single(
-            third.Where(
-                static item => item.UpdateKind == BarUpdateKind.Updated
-                    && item.Bar.Timeframe == BarTimeframe.M1));
+            third,
+            static item => item.UpdateKind == BarUpdateKind.Updated
+                && item.Bar.Timeframe == BarTimeframe.M1);
         FormingBarState forming = Assert.IsType<FormingBarState>(update.Bar);
 
         Assert.Equal(100m, forming.Open);
@@ -149,9 +149,9 @@ public sealed class CausalBarAggregationTests
         IReadOnlyList<BarEvent> crossed = aggregator.Apply(Tick(3, Utc(12, 1, 0, 0), 200m));
         ClosedBarState closed = Assert.IsType<ClosedBarState>(
             Assert.Single(
-                crossed.Where(
-                    static item => item.UpdateKind == BarUpdateKind.Closed
-                        && item.Bar.Timeframe == BarTimeframe.M1))
+                crossed,
+                static item => item.UpdateKind == BarUpdateKind.Closed
+                    && item.Bar.Timeframe == BarTimeframe.M1)
                 .Bar);
 
         Assert.Equal(100m, closed.Open);
@@ -204,9 +204,9 @@ public sealed class CausalBarAggregationTests
 
         ClosedBarState h1Closed = Assert.IsType<ClosedBarState>(
             Assert.Single(
-                boundary.Where(
-                    static item => item.UpdateKind == BarUpdateKind.Closed
-                        && item.Bar.Timeframe == BarTimeframe.H1))
+                boundary,
+                static item => item.UpdateKind == BarUpdateKind.Closed
+                    && item.Bar.Timeframe == BarTimeframe.H1)
                 .Bar);
 
         Assert.Equal(new DateTimeOffset(2026, 3, 29, 0, 0, 0, TimeSpan.Zero), h1Closed.OpenTimeUtc);
