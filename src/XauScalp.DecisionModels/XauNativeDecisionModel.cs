@@ -5,7 +5,7 @@ using XauScalp.Domain;
 
 namespace XauScalp.DecisionModels;
 
-public sealed class NativeModelInputException : InvalidDataException
+public sealed class NativeModelInputException : InvalidOperationException
 {
     public NativeModelInputException(string message)
         : base(message)
