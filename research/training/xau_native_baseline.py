@@ -729,11 +729,9 @@ def offline_predict(
 
 def _write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8", newline="
-") as handle:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(value, handle, separators=(",", ":"), ensure_ascii=False)
-        handle.write("
-")
+        handle.write("\n")
 
 
 def train_files(
