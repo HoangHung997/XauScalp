@@ -104,7 +104,7 @@ Symbol specification fields are populated from `SymbolSpecificationEvent`.
 
 A rolling field is unavailable until its complete causal window has elapsed from the first observed tick.
 
-Full XSP-005 tick-history readiness requires 15 seconds because the burst baseline uses 15 completed seconds. Overall `RequiredP0Ready` additionally requires symbol metadata, ATR, cost estimates, news context, and a configured session schedule.
+Full XSP-005 tick-history readiness requires 15 seconds because the burst baseline uses 15 completed seconds. Overall `RequiredP0Ready` additionally requires symbol metadata, ATR, cost estimates, news context, a configured session schedule, and an explicitly observed `Connected` market-data state. Unknown, reconnecting, or disconnected connection state fails closed.
 
 ## Determinism
 
