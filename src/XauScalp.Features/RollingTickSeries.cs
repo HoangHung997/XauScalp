@@ -119,8 +119,9 @@ internal sealed class RollingTickSeries
             intervals[index - 1] = (points[index].TimestampUtc - points[index - 1].TimestampUtc).TotalMilliseconds;
         }
 
-        meanMs = intervals.Average();
-        double variance = intervals.Select(value => Math.Pow(value - meanMs, 2)).Average();
+        double localMeanMs = intervals.Average();
+        double variance = intervals.Select(value => Math.Pow(value - localMeanMs, 2)).Average();
+        meanMs = localMeanMs;
         stdMs = Math.Sqrt(variance);
         return true;
     }
