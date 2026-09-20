@@ -1,79 +1,107 @@
-# XauScalp deterministic replay
+# XauScalp deterministic replay and first-passage research
 
-XSP-008 replays the persisted market-event stream through the exact same `IXauFeatureEngine` implementation used by live processing.
+XSP-008 replays the persisted market-event stream through the exact same `IXauFeatureEngine` implementation used by live processing. XSP-009 adds a **separate** future-label and entry-timing research phase.
 
-## Core rule
-
-Replay is an evidence pipeline, not a strategy simulator.
+## Core causality rule
 
 ```text
 recorded MarketEvent stream
   -> ReplayEventScheduler
   -> same XauFeatureEngine
   -> ReplayOutputRecord
-  -> streaming sink + deterministic hash
+  -> deterministic replay hash
+  -> separate FirstPassageLabelEngine / EntryModeExperiment
 ```
 
-Future labels are not accepted by the replay runner. First-passage labels belong to XSP-009 and are computed in a separate phase after feature snapshots exist.
+Future labels never enter `XauMarketState`, `IXauFeatureEngine`, or live feature computation.
 
-## Ordering and causality
+## Replay ordering
 
 - Source order is authoritative; replay never sorts or manufactures events.
-- Equal timestamps preserve the recorded source order.
-- A UTC timestamp regression fails closed instead of silently reordering evidence.
-- The feature engine receives one event at a time and therefore cannot inspect a future tick.
-- Non-tick context events update feature context; feature snapshots are emitted only for actual `TickEvent` records.
-- Current/forming M1 semantics remain those of XSP-004/XSP-005; final bar values are not injected early.
-
-Upstream feed-gap/anomaly markers remain records in the replay output. Replay does not infer missing ticks.
+- Equal timestamps preserve recorded source order.
+- UTC timestamp regression fails closed.
+- Upstream feed-gap markers stay explicit; missing ticks are never inferred.
 
 ## Timing modes
 
-Timing changes wall-clock playback only; it never changes event order or feature semantics.
+Timing changes wall-clock playback only:
 
-- `Step`: each recorded event requires a step gate release.
-- `Realtime`: waits the recorded UTC delta between consecutive events.
-- `Accelerated`: waits recorded delta divided by a positive acceleration factor.
+- `Step`;
+- `Realtime`;
+- `Accelerated`.
 
-Tests inject a fake delay so timing policy can be verified without slowing CI.
+It never changes feature or event order.
 
-## Cost-scenario hook
+## First-passage labels
 
-Every run declares a `ReplayCostScenario` containing:
+State-level labels use the ordered **mid-price** path after each causal market state. Mid is used here because the labels are direction-neutral research outcomes; execution-cost experiments separately use executable bid/ask.
 
-- scenario name;
-- optional estimated latency;
-- optional estimated slippage;
-- commission per lot.
+For every configured horizon the label phase records:
 
-Raw recorded spread is never rewritten. A causal `IReplayFeatureContextProvider` receives the current event plus cost scenario and may produce a `FeatureExternalContext` for that event. This keeps cost assumptions explicit without mutating the historical feed.
+- up/down first hit for each target distance (V1 includes 5 and 10 price units);
+- target-first vs adverse-first vs censored for every target/adverse-barrier pair and Long/Short direction;
+- Long MFE/MAE and times;
+- mirrored Short MFE/MAE and times;
+- whether the dataset ended before the requested horizon.
 
-## Manifest
+A future tick is scanned only after the source record that created the state. Ordered ticks, not M1 OHLC, decide which barrier occurred first.
 
-The final `ReplayRunManifest` records:
+## Entry-mode experiment
 
-- deterministic run ID;
-- dataset SHA-256 / dataset ID;
-- feature schema and feature-engine versions;
-- model ID/version/artifact hash (explicit `none` before model stages);
-- settings version/hash;
-- cost scenario;
-- timing mode/factor;
-- code commit;
-- start/end timestamps;
-- event/tick counts;
-- random seed.
+The experiment accepts externally supplied `EntryExperimentCandidate` values containing a market-state identity and an **intended side**. It does not create BUY/SELL opinions from features.
 
-## Hashes and numeric tolerance
+The same candidate is tested against all five modes:
 
-Dataset and replay-output hashes are SHA-256 over UTF-8 canonical JSON lines in recorded order.
+1. `M1Close` — first causal tick at/after the setup M1 close boundary;
+2. `IntrabarImmediate` — candidate tick;
+3. `IntrabarDeceleration` — first state whose numeric opposing peak exists and `DecelerationRatio` crosses the configured threshold;
+4. `IntrabarDirectionFlip` — first recent 500ms velocity sign flip into the supplied intended side;
+5. `IntrabarMicroRetest` — ordered tick path advances, retraces, then resumes by configured price distances.
 
-For the same .NET runtime, code, settings, cost scenario, feature engine, and input stream, hash equality is expected exactly.
+These are research triggers, not production winners or hard-coded trade rules.
 
-When diagnosing cross-runtime floating-point behavior, numeric feature comparison tolerance is `1e-12`; this tolerance is diagnostic only and is **not** used to hide an output-hash mismatch.
+## Cost-inclusive entry evaluation
 
-## Streaming exports
+Every mode for a run uses the exact same `ReplayCostScenario`.
 
-`JsonlReplayRecordSink` writes each event plus the feature snapshot generated at that event without holding the whole dataset in memory. `InMemoryReplayRecordSink` exists for tests and small research runs.
+For normalized one-lot comparison:
 
-No replay class in XSP-008 places orders, chooses trade direction, or contains future outcome labels.
+- Long entry = Ask + configured entry slippage;
+- Long exit = Bid - configured exit slippage;
+- Short entry = Bid - entry slippage;
+- Short exit = Ask + exit slippage;
+- slippage points are converted with the latest causal symbol `Point`;
+- configured commission-per-lot is converted to price distance using `TickValue` and `TickSize`.
+
+`NetResultPrice` therefore includes spread, two-sided slippage and the configured round-trip commission price equivalent.
+
+## Metrics
+
+For every mode × target × adverse barrier × holding horizon:
+
+- candidate count / actual entry count / no-entry count;
+- P(target first);
+- false-entry rate = adverse-first or censored among actual entries;
+- expected net price value after costs;
+- average MFE / MAE;
+- median time to target;
+- profit factor, average win/loss;
+- cumulative max drawdown in net price units.
+
+All denominators are explicit.
+
+## Export
+
+`ResearchResultExporter` writes JSONL for:
+
+- first-passage state labels;
+- entry outcomes;
+- entry-mode summaries.
+
+## Determinism
+
+Dataset and replay-output hashes remain SHA-256 over UTF-8 JSON lines. XSP-009 consumes those ordered outputs without modifying earlier feature snapshots.
+
+Hand-crafted tests include two M1 paths with identical OHLC but opposite high/low order, proving OHLC alone cannot determine first passage.
+
+No class in this project places broker orders or enables live trading.
