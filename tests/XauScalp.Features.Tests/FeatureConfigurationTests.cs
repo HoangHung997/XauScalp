@@ -31,6 +31,77 @@ public sealed class FeatureConfigurationTests
     }
 
     [Fact]
+    public void UnknownConnectionState_BlocksP0Readiness()
+    {
+        DateTimeOffset start = new(2026, 9, 19, 12, 0, 0, TimeSpan.Zero);
+        var schedule = new MarketSessionSchedule(
+        [
+            new MarketSessionSegment(0, "AllDay", TimeOnly.MinValue, new TimeOnly(23, 59, 59)),
+        ]);
+
+        var engine = new XauFeatureEngine(
+            new XauFeatureEngineOptions(
+                BrokerClockConfiguration.UtcV1,
+                schedule,
+                externalContextMaxAge: TimeSpan.FromMinutes(5)));
+
+        engine.ObserveContext(
+            new SymbolSpecificationEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                null,
+                sequenceId: 0,
+                dataSourceId: "source",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD",
+                new SymbolSpecification(
+                    digits: 2,
+                    point: 0.01m,
+                    tickSize: 0.01m,
+                    tickValue: 1.25m,
+                    contractSize: 100m,
+                    minVolume: 0.01m,
+                    maxVolume: 100m,
+                    volumeStep: 0.01m,
+                    minStopDistance: 0.50m)));
+
+        engine.SetExternalContext(
+            new FeatureExternalContext(
+                start,
+                atrM1: 2,
+                estimatedLatencyMs: 1,
+                estimatedSlippagePoints: 1,
+                newsDistanceBeforeSec: 600,
+                newsDistanceAfterSec: 120,
+                isHighImpactNewsWindow: false));
+
+        XauMarketState? state = null;
+        for (int second = 0; second <= 16; second++)
+        {
+            DateTimeOffset timestamp = start.AddSeconds(second);
+            state = engine.Update(
+                new TickEvent(
+                    ContractVersions.MarketEventV1,
+                    timestamp,
+                    timestamp,
+                    second + 1,
+                    "source",
+                    "XAUUSD",
+                    "XAUUSD",
+                    100m + second * 0.01m,
+                    100.2m + second * 0.01m,
+                    null,
+                    1,
+                    TickFlags.Bid | TickFlags.Ask));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.TickHistoryReady);
+        Assert.False(state.Readiness.RequiredP0Ready);
+        Assert.Contains("market data connection", state.Readiness.MissingRequirements);
+    }
+
+    [Fact]
     public void FutureExternalContext_IsNotConsumedByEarlierState()
     {
         DateTimeOffset now = new(2026, 9, 19, 12, 0, 0, TimeSpan.Zero);
