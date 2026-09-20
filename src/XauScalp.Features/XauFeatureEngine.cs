@@ -608,7 +608,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
             missing.Add("session schedule");
         }
 
-        if (_connectionState == MarketConnectionState.Disconnected)
+        if (_connectionState != MarketConnectionState.Connected)
         {
             missing.Add("market data connection");
         }
