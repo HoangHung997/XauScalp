@@ -32,6 +32,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XauScalp.Execution.Tests", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XauScalp.IntegrationTests", "tests\XauScalp.IntegrationTests\XauScalp.IntegrationTests.csproj", "{B6666666-6666-4666-8666-666666666666}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "XauScalp.DecisionModels.Tests", "tests\\XauScalp.DecisionModels.Tests\\XauScalp.DecisionModels.Tests.csproj", "{B7777777-7777-4777-8777-777777777777}"
+EndProject
 Global
   GlobalSection(SolutionConfigurationPlatforms) = preSolution
     Debug|Any CPU = Debug|Any CPU
@@ -98,5 +100,9 @@ Global
     {B6666666-6666-4666-8666-666666666666}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {B6666666-6666-4666-8666-666666666666}.Release|Any CPU.ActiveCfg = Release|Any CPU
     {B6666666-6666-4666-8666-666666666666}.Release|Any CPU.Build.0 = Release|Any CPU
+    {B7777777-7777-4777-8777-777777777777}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {B7777777-7777-4777-8777-777777777777}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {B7777777-7777-4777-8777-777777777777}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {B7777777-7777-4777-8777-777777777777}.Release|Any CPU.Build.0 = Release|Any CPU
   EndGlobalSection
 EndGlobal
