@@ -66,6 +66,32 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void LiquiditySlice_IsIntegratedAndExplicitlyEstimated()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState state = engine.Update(Tick(1, start, 100m));
+
+        Assert.Equal(LiquiditySource.Estimated, state.LiquiditySource);
+        Assert.Single(
+            state.Features,
+            feature => feature.Name == FeatureNames.BuySideSweepDepthAtr);
+        Assert.Single(
+            state.Features,
+            feature => feature.Name == FeatureNames.UpperMagnetScore);
+
+        NumericFeatureValue swingDistance = Feature(
+            state,
+            FeatureNames.NearestSwingHighDistanceAtr);
+        Assert.False(swingDistance.IsAvailable);
+        Assert.Contains(
+            "level",
+            swingDistance.UnavailableReason ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Acceleration_UsesOnlyTwoCausalHalfWindows()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
