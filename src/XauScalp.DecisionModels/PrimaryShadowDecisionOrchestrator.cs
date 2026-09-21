@@ -49,11 +49,7 @@ public sealed class PrimaryShadowDecisionOrchestrator
                 settings.JevFailurePolicy,
                 cancellationToken).ConfigureAwait(false),
 
-            DecisionModelType.XauNative => await EvaluateDirectAsync(
-                _xauNative,
-                DecisionModelType.XauNative,
-                DecisionAuthorityRole.Primary,
-                isAuthoritative: true,
+            DecisionModelType.XauNative => await EvaluateNativePrimaryAsync(
                 state,
                 cancellationToken).ConfigureAwait(false),
 
@@ -126,6 +122,23 @@ public sealed class PrimaryShadowDecisionOrchestrator
             primary.Record.ActualModel,
             primary.StopNewTrades,
             primary.Record.IsFallback);
+    }
+
+    private async Task<PrimaryEvaluation> EvaluateNativePrimaryAsync(
+        XauMarketState state,
+        CancellationToken cancellationToken)
+    {
+        ModelDecisionRecord record = await EvaluateDirectAsync(
+            _xauNative,
+            DecisionModelType.XauNative,
+            DecisionAuthorityRole.Primary,
+            isAuthoritative: true,
+            state,
+            cancellationToken).ConfigureAwait(false);
+
+        return new PrimaryEvaluation(
+            record,
+            StopNewTrades: !record.Succeeded);
     }
 
     private async Task<PrimaryEvaluation> EvaluateJevPrimaryAsync(
