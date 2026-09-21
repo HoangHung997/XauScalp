@@ -489,7 +489,12 @@ public sealed class CausalStructureRegimeTracker
                 FeatureNames.FvgFillPct,
             })
             {
-                Unavailable(metrics, name, name.EndsWith("Sec", StringComparison.Ordinal) ? "seconds" : "atr", "M1 ATR unavailable for FVG normalization");
+                string unit = name == FeatureNames.FvgAgeSec
+                    ? "seconds"
+                    : name == FeatureNames.FvgFillPct
+                        ? "pct"
+                        : "atr";
+                Unavailable(metrics, name, unit, "M1 ATR unavailable for FVG normalization");
             }
 
             return;
