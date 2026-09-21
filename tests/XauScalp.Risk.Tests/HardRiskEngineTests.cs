@@ -37,6 +37,30 @@ public sealed class HardRiskEngineTests
     }
 
     [Fact]
+    public void BrokerMaximumVolumeAndVolumeStep_AreEnforced()
+    {
+        TestContext context = MakeContext(
+            profile: Profile(
+                tickSize: 0.10m,
+                tickValue: 1m,
+                minVolume: 0.01m,
+                maxVolume: 1.23m,
+                volumeStep: 0.05m),
+            stopDistance: 2m,
+            riskPct: 1);
+
+        RiskDecision result = context.Engine.Evaluate(
+            context.State,
+            context.Decision,
+            context.Portfolio,
+            context.Settings);
+
+        Assert.Equal(RiskDecisionOutcome.Authorized, result.Outcome);
+        Assert.Equal(1.20m, result.AuthorizedVolumeLots);
+        Assert.Equal(24m, result.AuthorizedRiskMoney);
+    }
+
+    [Fact]
     public void DifferentTickSizeValue_ChangesLotSizeWithoutChangingRiskMoney()
     {
         TestContext first = MakeContext(
@@ -292,8 +316,8 @@ public sealed class HardRiskEngineTests
     public void InsufficientPostTradeFreeMarginFailsClosed()
     {
         TestContext context = MakeContext(
-            freeMargin: 100m,
-            estimatedMarginPerLot: 1_000m);
+            freeMargin: 3_000m,
+            estimatedMarginPerLot: 10_000m);
 
         RiskDecision result = context.Engine.Evaluate(
             context.State,
@@ -301,7 +325,7 @@ public sealed class HardRiskEngineTests
             context.Portfolio,
             context.Settings);
 
-        Assert.Equal("free-margin-limit", result.ReasonCode);
+        Assert.Equal("insufficient-free-margin", result.ReasonCode);
     }
 
     [Fact]
