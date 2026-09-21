@@ -15,6 +15,9 @@ BROKER_DEMO_CLASS = "BROKER_DEMO"
 CI_REHEARSAL_CLASS = "CI_REHEARSAL_NOT_BROKER_DEMO"
 
 REQUIRED_DEMO_FIELDS = (
+    "codeCommit",
+    "ciRunUrl",
+    "canonicalSymbol",
     "datasetId",
     "datasetSha256",
     "replayRunId",
@@ -24,6 +27,11 @@ REQUIRED_DEMO_FIELDS = (
     "demoExecutionId",
     "capturedAtUtc",
     "tickCount",
+    "jevLatencyP95Ms",
+    "xauNativeLatencyP95Ms",
+    "costAssumptions",
+    "knownLimitations",
+    "unresolvedP0P1CorrectnessIssues",
     "featureParityPassed",
     "replayDeterminismPassed",
     "primaryShadowPassed",
@@ -77,8 +85,28 @@ def validate_broker_demo_manifest(
             "broker demo evidence must explicitly state liveMoneyEnabled=false"
         )
 
-    _required_text(manifest["datasetId"], "datasetId")
-    _sha256(manifest["datasetSha256"], "datasetSha256")
+    code_commit = _required_text(manifest["codeCommit"], "codeCommit").lower()
+    if len(code_commit) != 40 or any(
+        char not in "0123456789abcdef" for char in code_commit
+    ):
+        raise ValueError("codeCommit must be a 40-character git SHA hex string")
+
+    ci_run_url = _required_text(manifest["ciRunUrl"], "ciRunUrl")
+    if not ci_run_url.startswith("https://github.com/"):
+        raise ValueError("ciRunUrl must be a GitHub Actions URL")
+
+    canonical_symbol = _required_text(
+        manifest["canonicalSymbol"],
+        "canonicalSymbol",
+    )
+    if canonical_symbol != "XAUUSD":
+        raise ValueError("canonicalSymbol must be XAUUSD for XSP-017")
+
+    dataset_sha = _sha256(manifest["datasetSha256"], "datasetSha256")
+    dataset_id = _required_text(manifest["datasetId"], "datasetId")
+    if dataset_id.lower() != f"sha256:{dataset_sha}":
+        raise ValueError("datasetId must equal sha256:<datasetSha256>")
+
     _required_text(manifest["replayRunId"], "replayRunId")
     _sha256(manifest["replayOutputSha256"], "replayOutputSha256")
     _required_text(manifest["brokerSymbol"], "brokerSymbol")
@@ -87,12 +115,52 @@ def validate_broker_demo_manifest(
 
     captured = _required_text(manifest["capturedAtUtc"], "capturedAtUtc")
     timestamp = dt.datetime.fromisoformat(captured.replace("Z", "+00:00"))
-    if timestamp.tzinfo is None:
-        raise ValueError("capturedAtUtc must include UTC/timezone information")
+    if timestamp.tzinfo is None or timestamp.utcoffset() != dt.timedelta(0):
+        raise ValueError("capturedAtUtc must be explicitly UTC")
 
     tick_count = manifest["tickCount"]
     if not isinstance(tick_count, int) or isinstance(tick_count, bool) or tick_count <= 0:
         raise ValueError("tickCount must be a positive integer")
+
+    for field in ("jevLatencyP95Ms", "xauNativeLatencyP95Ms"):
+        value = manifest[field]
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value < 0
+        ):
+            raise ValueError(f"{field} must be a non-negative number")
+
+    cost = manifest["costAssumptions"]
+    if not isinstance(cost, dict):
+        raise ValueError("costAssumptions must be an object")
+    for field in ("slippagePoints", "commissionPerLot", "latencyMs"):
+        value = cost.get(field)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value < 0
+        ):
+            raise ValueError(
+                f"costAssumptions.{field} must be a non-negative number"
+            )
+
+    known_limitations = manifest["knownLimitations"]
+    if not isinstance(known_limitations, list) or any(
+        not isinstance(item, str) or not item.strip()
+        for item in known_limitations
+    ):
+        raise ValueError("knownLimitations must be a list of non-empty strings")
+
+    unresolved = manifest["unresolvedP0P1CorrectnessIssues"]
+    if not isinstance(unresolved, list):
+        raise ValueError(
+            "unresolvedP0P1CorrectnessIssues must be a list"
+        )
+    if unresolved:
+        raise ValueError(
+            "unresolved P0/P1 correctness issues must be empty before demo readiness"
+        )
 
     pass_fields = (
         "featureParityPassed",
@@ -175,6 +243,9 @@ def build_ci_rehearsal_evidence(
         external = {
             "status": "validated",
             "evidenceClass": validated["evidenceClass"],
+            "codeCommit": validated["codeCommit"],
+            "ciRunUrl": validated["ciRunUrl"],
+            "canonicalSymbol": validated["canonicalSymbol"],
             "datasetId": validated["datasetId"],
             "datasetSha256": validated["datasetSha256"],
             "replayRunId": validated["replayRunId"],
@@ -184,6 +255,12 @@ def build_ci_rehearsal_evidence(
             "demoExecutionId": validated["demoExecutionId"],
             "capturedAtUtc": validated["capturedAtUtc"],
             "tickCount": validated["tickCount"],
+            "jevLatencyP95Ms": validated["jevLatencyP95Ms"],
+            "xauNativeLatencyP95Ms": validated["xauNativeLatencyP95Ms"],
+            "costAssumptions": validated["costAssumptions"],
+            "knownLimitations": validated["knownLimitations"],
+            "unresolvedP0P1CorrectnessIssues":
+                validated["unresolvedP0P1CorrectnessIssues"],
         }
         readiness = "ready-for-human-demo-review"
 
