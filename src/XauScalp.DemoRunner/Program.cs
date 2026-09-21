@@ -111,6 +111,9 @@ internal static class Program
         string lastReadyStatePath = Path.Combine(
             dataDirectory,
             "last-ready-state.json");
+        string liveFeatureSnapshotPath = Path.Combine(
+            dataDirectory,
+            "live-feature-snapshots.jsonl");
 
         PositionOwnership ownership =
             configuration.BuildOwnership();
@@ -292,6 +295,9 @@ internal static class Program
             new AppendOnlyJsonlMarketEventStore(
                 rawDatasetPath,
                 flushEveryRecords: 1);
+        await using var liveFeatureSnapshots =
+            new LiveFeatureSnapshotJsonlStore(
+                liveFeatureSnapshotPath);
 
         long? lastRecordedSequence =
             await rawStore.GetHighestSourceSequenceIdAsync(
@@ -345,6 +351,10 @@ internal static class Program
 
             XauMarketState state =
                 featureEngine.Update(tick);
+
+            await liveFeatureSnapshots.AppendAsync(
+                state,
+                cancellationToken).ConfigureAwait(false);
 
             if (state.Readiness.RequiredP0Ready)
             {
