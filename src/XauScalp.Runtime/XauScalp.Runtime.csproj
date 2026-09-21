@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../XauScalp.Domain/XauScalp.Domain.csproj" />
+    <ProjectReference Include="../XauScalp.DecisionModels/XauScalp.DecisionModels.csproj" />
+    <ProjectReference Include="../XauScalp.Risk/XauScalp.Risk.csproj" />
+    <ProjectReference Include="../XauScalp.Execution/XauScalp.Execution.csproj" />
+  </ItemGroup>
+</Project>

@@ -66,6 +66,84 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void PersistedNewsContext_OverridesOutOfBandNewsFields()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        engine.ObserveContext(
+            new NewsContextEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                sequenceId: 1,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                isAvailable: true,
+                newsDistanceBeforeSec: 120,
+                newsDistanceAfterSec: 3_600,
+                source: "mt5-economic-calendar:USD:high",
+                sourceErrorCode: null));
+
+        XauMarketState state = engine.Update(
+            Tick(2, start.AddSeconds(1), 100m));
+
+        AssertFeature(
+            state,
+            FeatureNames.NewsDistanceBeforeSec,
+            120,
+            8);
+        AssertFeature(
+            state,
+            FeatureNames.NewsDistanceAfterSec,
+            3_600,
+            8);
+        AssertFeature(
+            state,
+            FeatureNames.IsHighImpactNewsWindow,
+            1,
+            8);
+        Assert.True(state.Readiness.NewsDataAvailable);
+    }
+
+    [Fact]
+    public void ExplicitUnavailableNewsEvent_FailsClosedInsteadOfFallingBack()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        engine.ObserveContext(
+            new NewsContextEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                sequenceId: 1,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                isAvailable: false,
+                newsDistanceBeforeSec: null,
+                newsDistanceAfterSec: null,
+                source: "mt5-economic-calendar:USD:high",
+                sourceErrorCode: 5401));
+
+        XauMarketState state = engine.Update(
+            Tick(2, start.AddSeconds(1), 100m));
+
+        Assert.False(
+            Feature(state, FeatureNames.NewsDistanceBeforeSec)
+                .IsAvailable);
+        Assert.False(
+            Feature(state, FeatureNames.IsHighImpactNewsWindow)
+                .IsAvailable);
+        Assert.False(state.Readiness.NewsDataAvailable);
+        Assert.Contains(
+            "news context",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+        Assert.False(state.Readiness.RequiredP0Ready);
+    }
+
+    [Fact]
     public void LiquiditySlice_IsIntegratedAndExplicitlyEstimated()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
@@ -304,6 +382,211 @@ public sealed class XauFeatureEngineTests
         Assert.NotNull(burstState);
         double zScore = AvailableValue(burstState!, FeatureNames.BurstZScore);
         Assert.True(zScore > 1);
+    }
+
+    [Fact]
+    public void BrokerOffsetWallClock_DoesNotCauseFalseStaleness()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        var schedule = new MarketSessionSchedule(
+        [
+            new MarketSessionSegment(
+                0,
+                "all-day-a",
+                TimeOnly.MinValue,
+                new TimeOnly(12, 0)),
+            new MarketSessionSegment(
+                1,
+                "all-day-b",
+                new TimeOnly(12, 0),
+                TimeOnly.MinValue),
+        ]);
+
+        var clock = new BrokerClockConfiguration(
+            "broker-plus-two",
+            TimeOnly.MinValue,
+            [
+                new BrokerClockSegment(
+                    DateTimeOffset.MinValue,
+                    TimeSpan.FromHours(2)),
+            ]);
+
+        var engine = new XauFeatureEngine(
+            new XauFeatureEngineOptions(
+                clock,
+                schedule,
+                externalContextMaxAge:
+                    TimeSpan.FromMinutes(5)));
+
+        engine.ObserveContext(
+            new SymbolSpecificationEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                null,
+                0,
+                "mt5-test",
+                "XAUUSD",
+                "XAUUSD.G",
+                new SymbolSpecification(
+                    2,
+                    0.01m,
+                    0.01m,
+                    1.25m,
+                    100m,
+                    0.01m,
+                    100m,
+                    0.01m,
+                    0.50m)));
+
+        engine.ObserveContext(
+            new ConnectionStatusEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                null,
+                0,
+                "mt5-test",
+                "XAUUSD",
+                "XAUUSD.G",
+                MarketConnectionState.Connected,
+                "test"));
+
+        engine.SetExternalContext(
+            new FeatureExternalContext(
+                start,
+                atrM1: 2,
+                estimatedLatencyMs: 12,
+                estimatedSlippagePoints: 3,
+                newsDistanceBeforeSec: 3_600,
+                newsDistanceAfterSec: 3_600,
+                isHighImpactNewsWindow: false));
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            DateTimeOffset ingestion =
+                start.AddMilliseconds(index * 500);
+            DateTimeOffset brokerWallClock =
+                new(
+                    ingestion.Year,
+                    ingestion.Month,
+                    ingestion.Day,
+                    ingestion.Hour + 2,
+                    ingestion.Minute,
+                    ingestion.Second,
+                    ingestion.Millisecond,
+                    TimeSpan.Zero);
+
+            state = engine.Update(
+                new TickEvent(
+                    ContractVersions.MarketEventV1,
+                    ingestion,
+                    brokerWallClock,
+                    index + 1,
+                    "mt5-test",
+                    "XAUUSD",
+                    "XAUUSD.G",
+                    100m + index * 0.01m,
+                    100.20m + index * 0.01m,
+                    null,
+                    1,
+                    TickFlags.Bid
+                        | TickFlags.Ask
+                        | TickFlags.Volume));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+        Assert.DoesNotContain(
+            "stale broker tick",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void OldBrokerTimestamp_FailsClosedEvenWhenIngestionTimestampIsFresh()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            state = engine.Update(
+                Tick(
+                    index + 1,
+                    start.AddMilliseconds(index * 500),
+                    100m + index * 0.01m));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+
+        DateTimeOffset freshIngestion = start.AddSeconds(21);
+        var staleBrokerTick = new TickEvent(
+            ContractVersions.MarketEventV1,
+            freshIngestion,
+            start.AddSeconds(10),
+            sequenceId: 50,
+            dataSourceId: "mt5-test",
+            symbol: "XAUUSD",
+            brokerSymbol: "XAUUSD.G",
+            bid: 101m,
+            ask: 101.2m,
+            last: null,
+            tickVolume: 1,
+            TickFlags.Bid | TickFlags.Ask | TickFlags.Volume);
+
+        state = engine.Update(staleBrokerTick);
+
+        Assert.False(state.Readiness.RequiredP0Ready);
+        Assert.Contains(
+            "stale broker tick",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void FeedGap_PermanentlyLocksReadinessForCurrentEngineInstance()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            state = engine.Update(
+                Tick(
+                    index + 1,
+                    start.AddMilliseconds(index * 500),
+                    100m + index * 0.01m));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+
+        engine.ObserveContext(
+            new FeedGapEvent(
+                ContractVersions.MarketEventV1,
+                start.AddSeconds(21),
+                sequenceId: 50,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                expectedSequenceId: 49,
+                observedSequenceId: 50,
+                FeedSequenceAnomalyKind.MissingRange));
+
+        state = engine.Update(
+            Tick(
+                51,
+                start.AddSeconds(22),
+                101m));
+
+        Assert.False(state.Readiness.RequiredP0Ready);
+        Assert.Contains(
+            "unresolved feed gap",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
     }
 
     [Fact]

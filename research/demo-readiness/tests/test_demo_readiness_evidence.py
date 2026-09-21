@@ -81,6 +81,16 @@ class DemoReadinessEvidenceTests(unittest.TestCase):
         ):
             evidence.validate_broker_demo_manifest(manifest)
 
+    def test_missing_compiled_bridge_proof_is_rejected(self):
+        manifest = self._manifest()
+        manifest["mt5BridgesCompiledPassed"] = False
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "mt5BridgesCompiledPassed",
+        ):
+            evidence.validate_broker_demo_manifest(manifest)
+
     def test_non_utc_capture_time_is_rejected(self):
         manifest = self._manifest()
         manifest["capturedAtUtc"] = "2026-09-21T07:00:00+07:00"
@@ -145,6 +155,9 @@ class DemoReadinessEvidenceTests(unittest.TestCase):
             "brokerSymbol": "XAUUSD.G",
             "dataSourceId": "mt5-demo",
             "demoExecutionId": "demo-exec-001",
+            "mt5MarketBridgeEx5Sha256": "4" * 64,
+            "mt5DemoExecutionBridgeEx5Sha256": "5" * 64,
+            "mt5BridgesCompiledPassed": True,
             "capturedAtUtc": "2026-09-21T00:00:00Z",
             "tickCount": 1000,
             "jevLatencyP95Ms": 45.0,

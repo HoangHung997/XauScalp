@@ -12,15 +12,11 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/XauScalp.DemoRunner/XauScalp.DemoRunner.csproj" />
     <ProjectReference Include="../../src/XauScalp.Domain/XauScalp.Domain.csproj" />
-    <ProjectReference Include="../../src/XauScalp.MarketData/XauScalp.MarketData.csproj" />
-    <ProjectReference Include="../../src/XauScalp.Features/XauScalp.Features.csproj" />
-    <ProjectReference Include="../../src/XauScalp.DecisionModels/XauScalp.DecisionModels.csproj" />
-    <ProjectReference Include="../../src/XauScalp.Risk/XauScalp.Risk.csproj" />
     <ProjectReference Include="../../src/XauScalp.Execution/XauScalp.Execution.csproj" />
     <ProjectReference Include="../../src/XauScalp.Persistence/XauScalp.Persistence.csproj" />
+    <ProjectReference Include="../../src/XauScalp.Risk/XauScalp.Risk.csproj" />
     <ProjectReference Include="../../src/XauScalp.Replay/XauScalp.Replay.csproj" />
-    <ProjectReference Include="../../src/XauScalp.App.Core/XauScalp.App.Core.csproj" />
-    <ProjectReference Include="../../src/XauScalp.Runtime/XauScalp.Runtime.csproj" />
   </ItemGroup>
 </Project>

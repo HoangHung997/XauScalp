@@ -7,7 +7,7 @@ namespace XauScalp.Features;
 
 public sealed class XauFeatureEngine : IXauFeatureEngine
 {
-    public const string EngineVersion = "xau-feature-engine-xsp007-v1";
+    public const string EngineVersion = "xau-feature-engine-xsp017-v1";
 
     private static readonly TimeSpan Window250Ms = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan Window500Ms = TimeSpan.FromMilliseconds(500);
@@ -28,9 +28,11 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
 
     private SymbolSpecificationEvent? _symbolSpecificationEvent;
     private FeatureExternalContext? _externalContext;
+    private NewsContextEvent? _newsContextEvent;
     private TickEvent? _lastTick;
     private XauMarketState? _lastState;
     private MarketConnectionState? _connectionState;
+    private bool _feedGapDetected;
     private int? _lastVelocityDirection;
     private DateTimeOffset? _lastDirectionFlipAtUtc;
 
@@ -85,7 +87,14 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
                 _connectionState = connectionEvent.State;
                 break;
 
+            case NewsContextEvent newsContextEvent:
+                _newsContextEvent = newsContextEvent;
+                break;
+
             case FeedGapEvent:
+                _feedGapDetected = true;
+                break;
+
             case BarEvent:
             case TickEvent:
                 break;
@@ -156,7 +165,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
             ?? throw new InvalidOperationException("M1 forming state is unavailable after a tick.");
 
         NormalizedMarketTime normalizedTime = _clockNormalizer.Normalize(asOfUtc, brokerTimestamp);
-        FeatureExternalContext? external = GetFreshExternalContext(asOfUtc);
+        FeatureExternalContext? external = ComposeExternalContext(asOfUtc);
 
         var features = new List<NumericFeatureValue>(176);
         AddExecutionFeatures(features, lastTick, asOfUtc, normalizedTime, external);
@@ -722,6 +731,58 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         _lastVelocityDirection = direction;
     }
 
+    private FeatureExternalContext? ComposeExternalContext(
+        DateTimeOffset asOfUtc)
+    {
+        FeatureExternalContext? external = GetFreshExternalContext(asOfUtc);
+
+        if (_newsContextEvent is null)
+        {
+            return external;
+        }
+
+        NewsContextEvent news = _newsContextEvent;
+        bool fresh = news.TimestampUtc <= asOfUtc
+            && asOfUtc - news.TimestampUtc <= _options.ExternalContextMaxAge;
+
+        if (!fresh || !news.IsAvailable)
+        {
+            if (external is null)
+            {
+                return null;
+            }
+
+            return new FeatureExternalContext(
+                external.ObservedAtUtc,
+                external.AtrM1,
+                external.EstimatedLatencyMs,
+                external.EstimatedSlippagePoints);
+        }
+
+        double before = news.NewsDistanceBeforeSec
+            ?? throw new InvalidDataException(
+                "Available news context is missing upcoming-event distance.");
+        double after = news.NewsDistanceAfterSec
+            ?? throw new InvalidDataException(
+                "Available news context is missing past-event distance.");
+
+        bool highImpact =
+            before <= _options.HighImpactNewsFeatureWindowBeforeSec
+            || after <= _options.HighImpactNewsFeatureWindowAfterSec;
+
+        DateTimeOffset observedAt = external?.ObservedAtUtc
+            ?? news.TimestampUtc;
+
+        return new FeatureExternalContext(
+            observedAt,
+            external?.AtrM1,
+            external?.EstimatedLatencyMs,
+            external?.EstimatedSlippagePoints,
+            before,
+            after,
+            highImpact);
+    }
+
     private FeatureExternalContext? GetFreshExternalContext(DateTimeOffset asOfUtc)
     {
         if (_externalContext is null
@@ -780,6 +841,34 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         if (_connectionState != MarketConnectionState.Connected)
         {
             missing.Add("market data connection");
+        }
+
+        if (_lastTick?.BrokerTimestamp is not DateTimeOffset brokerTimestamp)
+        {
+            missing.Add("broker tick timestamp");
+        }
+        else
+        {
+            DateTime expectedBrokerLocal =
+                _clockNormalizer.Normalize(asOfUtc)
+                    .BrokerLocalDateTime;
+            DateTime sourceBrokerWallClock =
+                DateTime.SpecifyKind(
+                    brokerTimestamp.DateTime,
+                    DateTimeKind.Unspecified);
+            TimeSpan brokerTickAge =
+                expectedBrokerLocal - sourceBrokerWallClock;
+
+            if (brokerTickAge < TimeSpan.Zero
+                || brokerTickAge > _options.MaxBrokerTickAge)
+            {
+                missing.Add("stale broker tick");
+            }
+        }
+
+        if (_feedGapDetected)
+        {
+            missing.Add("unresolved feed gap");
         }
 
         return missing.ToArray();

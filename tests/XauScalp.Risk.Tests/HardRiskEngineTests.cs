@@ -329,6 +329,133 @@ public sealed class HardRiskEngineTests
     }
 
     [Fact]
+    public async Task BrokerClosedTradeSync_IsIdempotentByTradeIntentAcrossRestart()
+    {
+        DateTimeOffset now = Utc(12, 0, 0);
+        Guid tradeIntentId = Guid.Parse(
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            "xauscalp-risk-tests",
+            Guid.NewGuid().ToString("N"),
+            "risk-ledger.jsonl");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        try
+        {
+            await using (var first = new RiskLedgerJsonlStore(path, Ownership))
+            {
+                await first.StartTradingDayAsync(
+                    now.AddHours(-1),
+                    10_000m);
+
+                bool added = await first.RecordClosedTradeOnceAsync(
+                    tradeIntentId,
+                    now.AddMinutes(-10),
+                    realizedPnlMoney: -100m,
+                    commissionCostMoney: 5m,
+                    Ownership);
+
+                bool duplicate = await first.RecordClosedTradeOnceAsync(
+                    tradeIntentId,
+                    now.AddMinutes(-10),
+                    realizedPnlMoney: -100m,
+                    commissionCostMoney: 5m,
+                    Ownership);
+
+                Assert.True(added);
+                Assert.False(duplicate);
+            }
+
+            await using var reopened = new RiskLedgerJsonlStore(
+                path,
+                Ownership);
+
+            bool duplicateAfterRestart =
+                await reopened.RecordClosedTradeOnceAsync(
+                    tradeIntentId,
+                    now.AddMinutes(-10),
+                    realizedPnlMoney: -100m,
+                    commissionCostMoney: 5m,
+                    Ownership);
+
+            Assert.False(duplicateAfterRestart);
+
+            OwnedRiskLedgerSnapshot snapshot = reopened.GetSnapshot(now);
+            Assert.Equal(-105m, snapshot.RealizedNetPnlMoney);
+            Assert.Equal(1, snapshot.ClosedTrades);
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            string? directory = Path.GetDirectoryName(path);
+            if (directory is not null && Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task BrokerClosedTradeSync_ConflictingEvidenceFailsClosed()
+    {
+        DateTimeOffset now = Utc(12, 0, 0);
+        Guid tradeIntentId = Guid.Parse(
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+        string path = Path.Combine(
+            Path.GetTempPath(),
+            "xauscalp-risk-tests",
+            Guid.NewGuid().ToString("N"),
+            "risk-ledger.jsonl");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        try
+        {
+            await using var store = new RiskLedgerJsonlStore(
+                path,
+                Ownership);
+
+            await store.StartTradingDayAsync(
+                now.AddHours(-1),
+                10_000m);
+
+            _ = await store.RecordClosedTradeOnceAsync(
+                tradeIntentId,
+                now.AddMinutes(-10),
+                realizedPnlMoney: -100m,
+                commissionCostMoney: 5m,
+                Ownership);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                async () => await store.RecordClosedTradeOnceAsync(
+                    tradeIntentId,
+                    now.AddMinutes(-10),
+                    realizedPnlMoney: -90m,
+                    commissionCostMoney: 5m,
+                    Ownership));
+        }
+        finally
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+
+            string? directory = Path.GetDirectoryName(path);
+            if (directory is not null && Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task LedgerReconstructsOwnedDailyStateAcrossRestartAndIgnoresForeignTrade()
     {
         DateTimeOffset now = Utc(12, 0, 0);

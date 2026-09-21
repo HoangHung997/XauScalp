@@ -3,11 +3,16 @@
 
 input string InpOutputFile = "XauScalp\\mt5-wire-v1.ndjson";
 input int InpFlushIntervalMs = 100;
+input int InpNewsRefreshIntervalSec = 15;
+input int InpNewsLookbackSec = 86400;
+input int InpNewsLookaheadSec = 86400;
+input string InpNewsCurrency = "USD";
 
 int g_file = INVALID_HANDLE;
 ulong g_sequence = 0;
 bool g_last_connected = false;
 ulong g_last_flush_ms = 0;
+ulong g_last_news_ms = 0;
 
 string SequenceVariableName()
 {
@@ -106,8 +111,107 @@ void EmitSymbolSpecification()
    WriteFrame(json);
 }
 
+void EmitNewsUnavailable(const int error_code)
+{
+   const ulong sequence = NextSequence();
+   const string source = "mt5-economic-calendar:" + InpNewsCurrency + ":high";
+   const string json = StringFormat(
+      "{\"type\":\"news\",\"sequence\":%s,\"brokerSymbol\":\"%s\","
+      "\"available\":false,\"newsDistanceBeforeSec\":null,"
+      "\"newsDistanceAfterSec\":null,\"source\":\"%s\","
+      "\"sourceErrorCode\":%d}",
+      IntegerToString((long)sequence),
+      JsonEscape(_Symbol),
+      JsonEscape(source),
+      error_code);
+
+   WriteFrame(json);
+}
+
+void EmitNewsContext()
+{
+   g_last_news_ms = GetTickCount64();
+
+   const datetime server_now = TimeTradeServer();
+   if(server_now <= 0)
+   {
+      EmitNewsUnavailable(0);
+      return;
+   }
+
+   MqlCalendarValue values[];
+   ResetLastError();
+
+   const datetime date_from = server_now - InpNewsLookbackSec;
+   const datetime date_to = server_now + InpNewsLookaheadSec;
+
+   const int count = CalendarValueHistory(
+      values,
+      date_from,
+      date_to,
+      NULL,
+      InpNewsCurrency);
+
+   if(count < 0)
+   {
+      EmitNewsUnavailable(GetLastError());
+      return;
+   }
+
+   long distance_before = (long)InpNewsLookaheadSec + 1;
+   long distance_after = (long)InpNewsLookbackSec + 1;
+
+   for(int i = 0; i < count; i++)
+   {
+      MqlCalendarEvent event;
+      ResetLastError();
+
+      if(!CalendarEventById(values[i].event_id, event))
+      {
+         EmitNewsUnavailable(GetLastError());
+         return;
+      }
+
+      if(event.importance != CALENDAR_IMPORTANCE_HIGH)
+         continue;
+
+      const long delta = (long)values[i].time - (long)server_now;
+
+      if(delta >= 0 && delta < distance_before)
+         distance_before = delta;
+
+      if(delta <= 0 && -delta < distance_after)
+         distance_after = -delta;
+   }
+
+   const ulong sequence = NextSequence();
+   const string source = "mt5-economic-calendar:" + InpNewsCurrency + ":high";
+   const string json = StringFormat(
+      "{\"type\":\"news\",\"sequence\":%s,\"brokerSymbol\":\"%s\","
+      "\"available\":true,\"newsDistanceBeforeSec\":%s,"
+      "\"newsDistanceAfterSec\":%s,\"source\":\"%s\","
+      "\"sourceErrorCode\":null}",
+      IntegerToString((long)sequence),
+      JsonEscape(_Symbol),
+      IntegerToString(distance_before),
+      IntegerToString(distance_after),
+      JsonEscape(source));
+
+   WriteFrame(json);
+}
+
 int OnInit()
 {
+   if(InpFlushIntervalMs <= 0
+      || InpNewsRefreshIntervalSec <= 0
+      || InpNewsLookbackSec <= 0
+      || InpNewsLookaheadSec <= 0
+      || StringLen(InpNewsCurrency) == 0)
+   {
+      Print("XauScalp bridge inputs must be positive and news currency must be set.");
+      return INIT_PARAMETERS_INCORRECT;
+   }
+
    FolderCreate("XauScalp", FILE_COMMON);
 
    g_file = FileOpen(
@@ -130,6 +234,7 @@ int OnInit()
 
    EmitSymbolSpecification();
    EmitConnection(g_last_connected ? "connected" : "disconnected", "OnInit");
+   EmitNewsContext();
    MaybeFlush(true);
 
    if(!EventSetMillisecondTimer(250))
@@ -159,21 +264,36 @@ void OnDeinit(const int reason)
 void OnTimer()
 {
    const bool connected = (bool)TerminalInfoInteger(TERMINAL_CONNECTED);
-   if(connected == g_last_connected)
-      return;
+   bool force_flush = false;
 
-   if(connected)
+   if(connected != g_last_connected)
    {
-      EmitConnection("connected", "terminal reconnected");
-      EmitSymbolSpecification();
-   }
-   else
-   {
-      EmitConnection("disconnected", "terminal disconnected");
+      if(connected)
+      {
+         EmitConnection("connected", "terminal reconnected");
+         EmitSymbolSpecification();
+      }
+      else
+      {
+         EmitConnection("disconnected", "terminal disconnected");
+      }
+
+      g_last_connected = connected;
+      force_flush = true;
    }
 
-   g_last_connected = connected;
-   MaybeFlush(true);
+   const ulong now_ms = GetTickCount64();
+   const ulong news_interval_ms =
+      (ulong)InpNewsRefreshIntervalSec * 1000;
+
+   if(now_ms - g_last_news_ms >= news_interval_ms)
+   {
+      EmitNewsContext();
+      force_flush = true;
+   }
+
+   if(force_flush)
+      MaybeFlush(true);
 }
 
 void OnTick()

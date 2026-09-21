@@ -155,7 +155,10 @@ public sealed record Mt5DemoExecutionReply(
     bool SafeToRetry,
     Mt5DemoPositionWire[]? Positions,
     Mt5DemoOrderWire[]? Orders,
-    Guid[]? ClosedTradeIntentIds);
+    Guid[]? ClosedTradeIntentIds,
+    Mt5DemoAccountWire? Account = null,
+    Mt5DemoSymbolRiskWire? SymbolRisk = null,
+    Mt5DemoClosedTradeWire[]? ClosedTrades = null);
 
 public sealed record Mt5DemoPositionWire(
     Guid? TradeIntentId,
@@ -167,7 +170,10 @@ public sealed record Mt5DemoPositionWire(
     decimal EntryPrice,
     decimal? StopLossPrice,
     decimal? TakeProfitPrice,
-    long MagicNumber);
+    long MagicNumber,
+    decimal? CurrentPrice = null,
+    decimal? UnrealizedPnlMoney = null,
+    long? OpenedAtUnixMs = null);
 
 public sealed record Mt5DemoOrderWire(
     Guid? TradeIntentId,
@@ -175,6 +181,41 @@ public sealed record Mt5DemoOrderWire(
     string BrokerSymbol,
     string? BrokerComment,
     long MagicNumber);
+
+public sealed record Mt5DemoAccountWire(
+    decimal Balance,
+    decimal Equity,
+    decimal FreeMargin);
+
+public sealed record Mt5DemoClosedTradeWire(
+    Guid TradeIntentId,
+    decimal RealizedPnlMoney,
+    decimal CommissionCostMoney,
+    long ClosedAtUnixMs);
+
+public sealed record Mt5DemoSymbolRiskWire(
+    decimal Point,
+    decimal TickSize,
+    decimal TickValue,
+    decimal MinVolume,
+    decimal MaxVolume,
+    decimal VolumeStep,
+    decimal MinStopDistance,
+    decimal EstimatedMarginPerLotMoney);
+
+public sealed record Mt5DemoBrokerContextSnapshot(
+    string CanonicalSymbol,
+    string BrokerSymbol,
+    BrokerReconciliationSnapshot Reconciliation,
+    PortfolioState Portfolio,
+    Mt5DemoSymbolRiskWire SymbolRisk,
+    IReadOnlyList<Mt5DemoClosedTradeWire> ClosedTrades);
+
+public interface IMt5DemoBrokerContextProvider
+{
+    Task<Mt5DemoBrokerContextSnapshot> QueryDemoContextAsync(
+        CancellationToken cancellationToken);
+}
 
 public interface IMt5DemoExecutionTransport
 {

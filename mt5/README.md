@@ -50,3 +50,8 @@ GitHub Actions does not contain MetaEditor. The MQL5 source is code-reviewed in 
 ### Live money
 
 Neither bridge authorizes live money. The demo execution bridge intentionally refuses it.
+
+
+## Economic-calendar context
+
+The market-data bridge also records causal MT5 economic-calendar availability for USD high-impact events into the same ordered NDJSON source stream. It records nearest past/upcoming distance or an explicit unavailable record with the MT5 error code. The feature engine never converts calendar failure into "no news"; unavailable news remains fail-closed and replay sees the exact same persisted event.

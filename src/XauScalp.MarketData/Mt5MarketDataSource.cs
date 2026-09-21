@@ -18,11 +18,22 @@ public sealed class Mt5MarketDataSource : IMarketDataSource
     public Mt5MarketDataSource(
         IMt5Transport transport,
         Mt5GatewayOptions options,
-        IUtcClock? clock = null)
+        IUtcClock? clock = null,
+        long? initialHighestSourceSequenceId = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _clock = clock ?? new SystemUtcClock();
+
+        if (initialHighestSourceSequenceId is < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(initialHighestSourceSequenceId),
+                initialHighestSourceSequenceId,
+                "Initial source sequence must be non-negative when supplied.");
+        }
+
+        _highestSourceSequenceId = initialHighestSourceSequenceId;
     }
 
     public async IAsyncEnumerable<MarketEvent> ReadEventsAsync(
@@ -70,6 +81,7 @@ public sealed class Mt5MarketDataSource : IMarketDataSource
             Mt5WireTick tick => ConvertTick(tick, receivedAtUtc),
             Mt5WireSymbolSpecification specification => ConvertSymbolSpecification(specification, receivedAtUtc),
             Mt5WireConnection connection => ConvertConnection(connection, receivedAtUtc),
+            Mt5WireNewsContext news => ConvertNewsContext(news, receivedAtUtc),
             _ => throw new InvalidDataException($"Unsupported MT5 wire message type '{message.GetType().Name}'."),
         };
     }
@@ -158,6 +170,24 @@ public sealed class Mt5MarketDataSource : IMarketDataSource
             _options.SymbolMapping.BrokerSymbol,
             state,
             message.Reason);
+    }
+
+    private NewsContextEvent ConvertNewsContext(
+        Mt5WireNewsContext message,
+        DateTimeOffset receivedAtUtc)
+    {
+        return new NewsContextEvent(
+            ContractVersions.MarketEventV1,
+            receivedAtUtc,
+            message.SourceSequenceId,
+            _options.DataSourceId,
+            _options.SymbolMapping.CanonicalSymbol,
+            _options.SymbolMapping.BrokerSymbol,
+            message.IsAvailable,
+            message.NewsDistanceBeforeSec,
+            message.NewsDistanceAfterSec,
+            message.Source,
+            message.SourceErrorCode);
     }
 
     private FeedGapEvent CreateSequenceAnomaly(

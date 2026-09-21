@@ -28,6 +28,7 @@ public static class Mt5NdjsonParser
             "tick" => ParseTick(root, sequence, brokerSymbol),
             "symbol" => ParseSymbol(root, sequence, brokerSymbol),
             "connection" => ParseConnection(root, sequence, brokerSymbol),
+            "news" => ParseNewsContext(root, sequence, brokerSymbol),
             _ => throw new InvalidDataException($"Unsupported MT5 frame type '{type}'."),
         };
     }
@@ -100,6 +101,99 @@ public static class Mt5NdjsonParser
                 : null;
 
         return new Mt5WireConnection(sequence, brokerSymbol, state, reason);
+    }
+
+    private static Mt5WireNewsContext ParseNewsContext(
+        JsonElement root,
+        long sequence,
+        string brokerSymbol)
+    {
+        bool available = RequiredBoolean(root, "available");
+        string source = RequiredString(root, "source");
+        int? errorCode = OptionalInt32(root, "sourceErrorCode");
+        double? before = OptionalDouble(root, "newsDistanceBeforeSec");
+        double? after = OptionalDouble(root, "newsDistanceAfterSec");
+
+        if (available)
+        {
+            if (before is not double beforeValue
+                || !double.IsFinite(beforeValue)
+                || beforeValue < 0
+                || after is not double afterValue
+                || !double.IsFinite(afterValue)
+                || afterValue < 0)
+            {
+                throw new InvalidDataException(
+                    "Available MT5 news context requires non-negative finite distances.");
+            }
+        }
+        else if (before is not null || after is not null)
+        {
+            throw new InvalidDataException(
+                "Unavailable MT5 news context cannot carry synthetic distances.");
+        }
+
+        return new Mt5WireNewsContext(
+            sequence,
+            brokerSymbol,
+            available,
+            before,
+            after,
+            source,
+            errorCode);
+    }
+
+    private static bool RequiredBoolean(
+        JsonElement root,
+        string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out JsonElement value)
+            || value.ValueKind is not JsonValueKind.True and not JsonValueKind.False)
+        {
+            throw new InvalidDataException(
+                $"MT5 frame is missing boolean '{propertyName}'.");
+        }
+
+        return value.GetBoolean();
+    }
+
+    private static int? OptionalInt32(
+        JsonElement root,
+        string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out JsonElement value)
+            || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (!value.TryGetInt32(out int result))
+        {
+            throw new InvalidDataException(
+                $"MT5 frame '{propertyName}' must be an integer or null.");
+        }
+
+        return result;
+    }
+
+    private static double? OptionalDouble(
+        JsonElement root,
+        string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out JsonElement value)
+            || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (!value.TryGetDouble(out double result)
+            || !double.IsFinite(result))
+        {
+            throw new InvalidDataException(
+                $"MT5 frame '{propertyName}' must be a finite number or null.");
+        }
+
+        return result;
     }
 
     private static string RequiredString(JsonElement root, string propertyName)

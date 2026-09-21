@@ -25,6 +25,9 @@ REQUIRED_DEMO_FIELDS = (
     "brokerSymbol",
     "dataSourceId",
     "demoExecutionId",
+    "mt5MarketBridgeEx5Sha256",
+    "mt5DemoExecutionBridgeEx5Sha256",
+    "mt5BridgesCompiledPassed",
     "capturedAtUtc",
     "tickCount",
     "jevLatencyP95Ms",
@@ -112,6 +115,18 @@ def validate_broker_demo_manifest(
     _required_text(manifest["brokerSymbol"], "brokerSymbol")
     _required_text(manifest["dataSourceId"], "dataSourceId")
     _required_text(manifest["demoExecutionId"], "demoExecutionId")
+    _sha256(
+        manifest["mt5MarketBridgeEx5Sha256"],
+        "mt5MarketBridgeEx5Sha256",
+    )
+    _sha256(
+        manifest["mt5DemoExecutionBridgeEx5Sha256"],
+        "mt5DemoExecutionBridgeEx5Sha256",
+    )
+    if manifest["mt5BridgesCompiledPassed"] is not True:
+        raise ValueError(
+            "mt5BridgesCompiledPassed must be true for broker-demo evidence"
+        )
 
     captured = _required_text(manifest["capturedAtUtc"], "capturedAtUtc")
     timestamp = dt.datetime.fromisoformat(captured.replace("Z", "+00:00"))
@@ -253,6 +268,12 @@ def build_ci_rehearsal_evidence(
             "brokerSymbol": validated["brokerSymbol"],
             "dataSourceId": validated["dataSourceId"],
             "demoExecutionId": validated["demoExecutionId"],
+            "mt5MarketBridgeEx5Sha256":
+                validated["mt5MarketBridgeEx5Sha256"],
+            "mt5DemoExecutionBridgeEx5Sha256":
+                validated["mt5DemoExecutionBridgeEx5Sha256"],
+            "mt5BridgesCompiledPassed":
+                validated["mt5BridgesCompiledPassed"],
             "capturedAtUtc": validated["capturedAtUtc"],
             "tickCount": validated["tickCount"],
             "jevLatencyP95Ms": validated["jevLatencyP95Ms"],

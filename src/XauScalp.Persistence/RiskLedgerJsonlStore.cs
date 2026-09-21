@@ -76,7 +76,8 @@ public sealed class RiskLedgerJsonlStore :
                 startEquity,
                 RealizedPnlMoney: null,
                 CommissionCostMoney: null,
-                Ownership: null),
+                Ownership: null,
+                TradeIntentId: null),
             cancellationToken);
     }
 
@@ -105,8 +106,87 @@ public sealed class RiskLedgerJsonlStore :
                 StartEquity: null,
                 realizedPnlMoney,
                 commissionCostMoney,
-                ownership),
+                ownership,
+                TradeIntentId: null),
             cancellationToken);
+    }
+
+    public async ValueTask<bool> RecordClosedTradeOnceAsync(
+        Guid tradeIntentId,
+        DateTimeOffset occurredAtUtc,
+        decimal realizedPnlMoney,
+        decimal commissionCostMoney,
+        PositionOwnership ownership,
+        CancellationToken cancellationToken = default)
+    {
+        if (tradeIntentId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Trade intent id must be non-empty.",
+                nameof(tradeIntentId));
+        }
+
+        EnsureUtc(occurredAtUtc);
+        ArgumentNullException.ThrowIfNull(ownership);
+
+        if (commissionCostMoney < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(commissionCostMoney),
+                commissionCostMoney,
+                "Commission cost must be non-negative.");
+        }
+
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+            RiskLedgerEvent? existing = ReadEventsSynchronously()
+                .FirstOrDefault(
+                    item => item.Kind == RiskLedgerEventKind.TradeClosed
+                        && item.TradeIntentId == tradeIntentId
+                        && IsOwned(item.Ownership));
+
+            if (existing is not null)
+            {
+                if (existing.OccurredAtUtc != occurredAtUtc
+                    || existing.RealizedPnlMoney != realizedPnlMoney
+                    || existing.CommissionCostMoney != commissionCostMoney)
+                {
+                    throw new InvalidDataException(
+                        $"Risk ledger has conflicting closed-trade evidence for {tradeIntentId}.");
+                }
+
+                return false;
+            }
+
+            var ledgerEvent = new RiskLedgerEvent(
+                RiskLedgerEventKind.TradeClosed,
+                occurredAtUtc,
+                StartEquity: null,
+                realizedPnlMoney,
+                commissionCostMoney,
+                ownership,
+                tradeIntentId);
+
+            string json = JsonSerializer.Serialize(
+                ledgerEvent,
+                _jsonOptions);
+
+            await _writer
+                .WriteLineAsync(json.AsMemory(), cancellationToken)
+                .ConfigureAwait(false);
+            await _writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
     }
 
     public ValueTask RecordExecutionFailureAsync(
@@ -124,7 +204,8 @@ public sealed class RiskLedgerJsonlStore :
                 StartEquity: null,
                 RealizedPnlMoney: null,
                 CommissionCostMoney: null,
-                ownership),
+                ownership,
+                TradeIntentId: null),
             cancellationToken);
     }
 
@@ -358,5 +439,6 @@ public sealed class RiskLedgerJsonlStore :
         decimal? StartEquity,
         decimal? RealizedPnlMoney,
         decimal? CommissionCostMoney,
-        PositionOwnership? Ownership);
+        PositionOwnership? Ownership,
+        Guid? TradeIntentId = null);
 }

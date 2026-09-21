@@ -1,0 +1,102 @@
+{
+  "codeCommit": "<replace-with-exact-40-hex-main-commit>",
+  "ciRunUrl": "https://github.com/HoangHung997/XauScalp/actions/runs/<successful-main-run-id>",
+  "mt5CommonFilesPath": "C:\\Users\\<user>\\AppData\\Roaming\\MetaQuotes\\Terminal\\Common\\Files",
+  "dataDirectory": "C:\\XauScalpEvidence\\broker-demo-001",
+  "canonicalSymbol": "XAUUSD",
+  "brokerSymbol": "XAUUSD.G",
+  "dataSourceId": "mt5-demo",
+  "magicNumber": 991188,
+  "runtimeInstanceId": "xauscalp-demo-001",
+  "strategyId": "xauscalp",
+  "brokerUtcOffsetMinutes": 0,
+  "sessionDayStartBrokerTime": "00:00",
+  "sessions": [
+    {
+      "code": 0,
+      "name": "00-08",
+      "startInclusive": "00:00",
+      "endExclusive": "08:00"
+    },
+    {
+      "code": 1,
+      "name": "08-13",
+      "startInclusive": "08:00",
+      "endExclusive": "13:00"
+    },
+    {
+      "code": 2,
+      "name": "13-17",
+      "startInclusive": "13:00",
+      "endExclusive": "17:00"
+    },
+    {
+      "code": 3,
+      "name": "17-24",
+      "startInclusive": "17:00",
+      "endExclusive": "00:00"
+    }
+  ],
+  "nativeArtifactPath": "C:\\XauScalpModels\\xau-native-real.json",
+  "nativeArtifactManifestPath": "C:\\XauScalpModels\\xau-native-real.artifact-manifest.json",
+  "marketBridgeEx5Path": "C:\\path\\to\\XauScalpMarketBridge.ex5",
+  "demoExecutionBridgeEx5Path": "C:\\path\\to\\XauScalpDemoExecutionBridge.ex5",
+  "knownLimitations": [
+    "Broker-demo evidence is limited to the observed broker/account/session window."
+  ],
+  "jev": {
+    "endpoint": "https://<jev-provider>/evaluate",
+    "secretReference": "env:XAUSCALP_JEV_API_KEY",
+    "providerModelId": "jev",
+    "providerModelVersion": "<pinned-provider-version>",
+    "authorizationScheme": "Bearer",
+    "timeoutMs": 1000,
+    "maxResponseAgeMs": 2000,
+    "maxRetries": 1,
+    "circuitBreakerFailureThreshold": 3,
+    "circuitBreakerOpenSec": 30,
+    "allowInsecureHttp": false
+  },
+  "primaryDecisionModel": "xauNative",
+  "shadowComparisonEnabled": true,
+  "jevFailurePolicy": "stopNewTrades",
+  "risk": {
+    "maxRiskPerTradePct": 0.5,
+    "maxDailyLossPct": 2.0,
+    "maxDailyLossMoney": 500.0,
+    "maxTradesPerDay": 20,
+    "maxConcurrentPositions": 1,
+    "maxSpreadPrice": 0.8,
+    "maxSpreadAtrRatio": 0.25,
+    "maxSlippagePoints": 30,
+    "maxDecisionAgeMs": 2000,
+    "maxFeatureAgeMs": 2000,
+    "minFreeMarginPct": 20.0,
+    "cooldownAfterLossSec": 60,
+    "cooldownAfterExecutionFailureSec": 30,
+    "highImpactNewsBlockBeforeSec": 900,
+    "highImpactNewsBlockAfterSec": 900,
+    "allowLong": true,
+    "allowShort": true
+  },
+  "trade": {
+    "riskPolicyVersion": "demo-risk-v1",
+    "settingsVersion": "demo-settings-v1",
+    "protectiveStopDistancePrice": 3.0,
+    "takeProfitDistancePrice": 5.0
+  },
+  "costAssumptions": {
+    "estimatedLatencyMs": 100.0,
+    "estimatedSlippagePoints": 30.0,
+    "commissionPerLot": 0.0
+  },
+  "evaluation": {
+    "minimumIntervalMs": 500,
+    "maximumIntervalMs": 10000,
+    "decelerationThreshold": 0.6,
+    "directionFlipMaxAgeMs": 500.0
+  },
+  "externalContextMaxAgeSec": 60,
+  "maxBrokerTickAgeSec": 5,
+  "stopAfterFirstExecution": false
+}

@@ -196,6 +196,101 @@ public sealed class Mt5DemoExecutionBrokerGatewayTests
     }
 
     [Fact]
+    public async Task QueryDemoContext_MapsBrokerAccountAndSymbolRiskForHardRisk()
+    {
+        DateTimeOffset now = Utc(12, 0, 0);
+        Guid intent = Guid.Parse(
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+
+        var transport = new FakeTransport(command => Reply(
+            command,
+            outcome: null) with
+        {
+            Type = Mt5DemoExecutionProtocol.StateType,
+            Operation = Mt5DemoExecutionProtocol.QueryStateOperation,
+            TradeIntentId = null,
+            Positions =
+            [
+                new Mt5DemoPositionWire(
+                    intent,
+                    "position-1",
+                    "XAUUSD.G",
+                    Mt5DemoExecutionBrokerGateway.BuildBrokerComment(intent),
+                    "long",
+                    0.10m,
+                    2500.00m,
+                    2495.00m,
+                    2510.00m,
+                    Ownership.MagicNumber,
+                    CurrentPrice: 2501.00m,
+                    UnrealizedPnlMoney: 10m,
+                    OpenedAtUnixMs: now.AddMinutes(-5)
+                        .ToUnixTimeMilliseconds()),
+            ],
+            Account = new Mt5DemoAccountWire(
+                Balance: 10_000m,
+                Equity: 10_010m,
+                FreeMargin: 8_500m),
+            SymbolRisk = new Mt5DemoSymbolRiskWire(
+                Point: 0.01m,
+                TickSize: 0.01m,
+                TickValue: 1m,
+                MinVolume: 0.01m,
+                MaxVolume: 100m,
+                VolumeStep: 0.01m,
+                MinStopDistance: 0.50m,
+                EstimatedMarginPerLotMoney: 500m),
+            ClosedTrades =
+            [
+                new Mt5DemoClosedTradeWire(
+                    intent,
+                    RealizedPnlMoney: -12.5m,
+                    CommissionCostMoney: 1.5m,
+                    ClosedAtUnixMs: now.AddMinutes(-1)
+                        .ToUnixTimeMilliseconds()),
+            ],
+        });
+
+        var gateway = new Mt5DemoExecutionBrokerGateway(
+            Options(),
+            transport,
+            new FixedTimeProvider(now));
+
+        Mt5DemoBrokerContextSnapshot context =
+            await gateway.QueryDemoContextAsync(
+                CancellationToken.None);
+
+        Assert.Equal(now, context.Portfolio.AsOfUtc);
+        Assert.Equal(10_000m, context.Portfolio.Balance);
+        Assert.Equal(10_010m, context.Portfolio.Equity);
+        Assert.Equal(8_500m, context.Portfolio.FreeMargin);
+
+        PositionState position = Assert.Single(
+            context.Portfolio.Positions);
+        Assert.Equal(intent, position.TradeIntentId);
+        Assert.Equal("position-1", position.BrokerPositionId);
+        Assert.Equal(2501m, position.CurrentPrice);
+        Assert.Equal(10m, position.UnrealizedPnlMoney);
+        Assert.Equal(
+            now.AddMinutes(-5),
+            position.OpenedAtUtc);
+
+        Assert.Equal(0.01m, context.SymbolRisk.TickSize);
+        Assert.Equal(1m, context.SymbolRisk.TickValue);
+        Assert.Equal(
+            500m,
+            context.SymbolRisk.EstimatedMarginPerLotMoney);
+
+        Assert.Single(context.Reconciliation.Positions);
+
+        Mt5DemoClosedTradeWire closed = Assert.Single(
+            context.ClosedTrades);
+        Assert.Equal(intent, closed.TradeIntentId);
+        Assert.Equal(-12.5m, closed.RealizedPnlMoney);
+        Assert.Equal(1.5m, closed.CommissionCostMoney);
+    }
+
+    [Fact]
     public async Task SubmitAsync_OwnershipMismatchDoesNotReachTransport()
     {
         var transport = new FakeTransport(

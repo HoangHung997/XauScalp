@@ -139,6 +139,77 @@ public sealed class Mt5GatewayAndRecorderTests
     }
 
     [Fact]
+    public async Task NewsFrame_IsParsedConvertedAndPersistsAvailability()
+    {
+        const string json =
+            "{\"type\":\"news\",\"sequence\":9,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":true,\"newsDistanceBeforeSec\":120,"
+            + "\"newsDistanceAfterSec\":3600,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":null}";
+
+        Mt5WireNewsContext wire = Assert.IsType<Mt5WireNewsContext>(
+            Mt5NdjsonParser.Parse(json));
+
+        Assert.True(wire.IsAvailable);
+        Assert.Equal(120, wire.NewsDistanceBeforeSec);
+        Assert.Equal(3600, wire.NewsDistanceAfterSec);
+
+        List<MarketEvent> events = await ReadGatewayAsync([wire]);
+        NewsContextEvent news = Assert.IsType<NewsContextEvent>(
+            Assert.Single(events));
+
+        Assert.True(news.IsAvailable);
+        Assert.Equal(120, news.NewsDistanceBeforeSec);
+        Assert.Equal(3600, news.NewsDistanceAfterSec);
+        Assert.Null(news.SourceErrorCode);
+
+        JsonSerializerOptions options = XauJson.CreateOptions();
+        string persisted = JsonSerializer.Serialize<MarketEvent>(
+            news,
+            options);
+        MarketEvent restored = JsonSerializer.Deserialize<MarketEvent>(
+            persisted,
+            options)
+            ?? throw new InvalidOperationException(
+                "News event deserialized to null.");
+
+        NewsContextEvent restoredNews = Assert.IsType<NewsContextEvent>(
+            restored);
+        Assert.Equal(news, restoredNews);
+    }
+
+    [Fact]
+    public void UnavailableNewsFrame_RejectsSyntheticDistances()
+    {
+        const string validUnavailable =
+            "{\"type\":\"news\",\"sequence\":10,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":false,\"newsDistanceBeforeSec\":null,"
+            + "\"newsDistanceAfterSec\":null,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":5401}";
+
+        Mt5WireNewsContext unavailable =
+            Assert.IsType<Mt5WireNewsContext>(
+                Mt5NdjsonParser.Parse(validUnavailable));
+
+        Assert.False(unavailable.IsAvailable);
+        Assert.Null(unavailable.NewsDistanceBeforeSec);
+        Assert.Null(unavailable.NewsDistanceAfterSec);
+        Assert.Equal(5401, unavailable.SourceErrorCode);
+
+        const string invalidUnavailable =
+            "{\"type\":\"news\",\"sequence\":11,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":false,\"newsDistanceBeforeSec\":0,"
+            + "\"newsDistanceAfterSec\":null,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":5401}";
+
+        Assert.Throws<InvalidDataException>(
+            () => Mt5NdjsonParser.Parse(invalidUnavailable));
+    }
+
+    [Fact]
     public async Task RecorderRestart_AppendsWithoutRewritingHistory()
     {
         string directory = CreateTempDirectory();
@@ -262,7 +333,8 @@ public sealed class Mt5GatewayAndRecorderTests
 
             await using (var secondStore = new AppendOnlyJsonlMarketEventStore(datasetPath))
             {
-                long? resumeSequence = await secondStore.GetLastSequenceIdAsync();
+                long? resumeSequence =
+                    await secondStore.GetHighestSourceSequenceIdAsync();
                 Assert.Equal(2, resumeSequence);
 
                 var resumedSource = new Mt5MarketDataSource(
@@ -282,6 +354,89 @@ public sealed class Mt5GatewayAndRecorderTests
         {
             Directory.Delete(directory, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task SourceCheckpoint_IgnoresGapMarkerSoInterruptedPairCanRecover()
+    {
+        string directory = CreateTempDirectory();
+        string datasetPath = Path.Combine(
+            directory,
+            "gap-interrupt.jsonl");
+
+        try
+        {
+            await using var store =
+                new AppendOnlyJsonlMarketEventStore(
+                    datasetPath);
+
+            await store.AppendAsync(
+                CreateTickEvent(
+                    100,
+                    3680.10m,
+                    3680.20m));
+
+            await store.AppendAsync(
+                new FeedGapEvent(
+                    ContractVersions.MarketEventV1,
+                    ReceivedAtUtc,
+                    sequenceId: 102,
+                    dataSourceId: "mt5-demo",
+                    symbol: "XAUUSD",
+                    brokerSymbol: "XAUUSD.G",
+                    expectedSequenceId: 101,
+                    observedSequenceId: 102,
+                    FeedSequenceAnomalyKind.MissingRange));
+
+            long? checkpoint =
+                await store.GetHighestSourceSequenceIdAsync();
+
+            Assert.Equal(100, checkpoint);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ResumeInitialSequence_DetectsGapOnFirstNewFrame()
+    {
+        long brokerTime = DateTimeOffset
+            .Parse("2026-09-19T16:30:00Z")
+            .ToUnixTimeMilliseconds();
+
+        var source = new Mt5MarketDataSource(
+            new EnumerableMt5Transport(
+            [
+                Tick(
+                    102,
+                    brokerTime,
+                    3680.10m,
+                    3680.20m),
+            ]),
+            GatewayOptions,
+            new FixedClock(ReceivedAtUtc),
+            initialHighestSourceSequenceId: 100);
+
+        var events = new List<MarketEvent>();
+        await foreach (MarketEvent marketEvent in source.ReadEventsAsync())
+        {
+            events.Add(marketEvent);
+        }
+
+        Assert.Equal(2, events.Count);
+
+        FeedGapEvent gap = Assert.IsType<FeedGapEvent>(events[0]);
+        Assert.Equal(
+            FeedSequenceAnomalyKind.MissingRange,
+            gap.Kind);
+        Assert.Equal(101, gap.ExpectedSequenceId);
+        Assert.Equal(102, gap.ObservedSequenceId);
+
+        Assert.Equal(
+            102,
+            Assert.IsType<TickEvent>(events[1]).SequenceId);
     }
 
     [Fact]
