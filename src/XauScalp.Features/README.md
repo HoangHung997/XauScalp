@@ -165,3 +165,39 @@ For the most recent causal touch/sweep (retained for 60 seconds), the engine rec
 Micro-retest is only marked after the ordered path performs: sweep/close-back -> move at least 0.10 ATR away -> retest to within 0.05 ATR of the level -> resume at least 0.10 ATR away.
 
 Absorption scores are explicitly **estimated candidate scores**, combining deceleration, close-back and tick-volume evidence. They are not DOM and do not imply BUY/SELL.
+
+
+## XSP-007 causal structure, regime and HTF context
+
+All XSP-007 structure/regime fields are calculated from **closed bars only**. The forming M1 bar is used only for current order-block overlap measurement; it cannot confirm BOS/MSS/CHoCH, FVG, ATR, ADX, EMA slope or HTF direction.
+
+### BOS / MSS / CHoCH candidates
+
+M1 swings use the same causal 2-left/2-right confirmation rule as the liquidity slice.
+
+- BOS candidate: a closed M1 close crosses an already-confirmed swing high/low.
+- MSS candidate: a BOS occurs opposite the previously established structure direction.
+- CHoCH candidate: that opposing break also closes at least 0.10 ATR beyond the broken level with closed-bar body/range >= 0.60.
+
+These are numeric candidate definitions, not trade gates.
+
+### FVG and displacement
+
+A bullish FVG exists only after three M1 bars have closed and bar 3 low is above bar 1 high. A bearish FVG is the mirror. Size/distance are ATR-normalized; fill percentage advances only from later ordered ticks.
+
+Displacement records closed-M1 range/ATR and body/range. A candidate order block is the prior opposite-color closed M1 candle only when the displacement range is >= 1.5 ATR and body/range >= 0.60. Order-block overlap is the causal forming-M1 price-range overlap percentage, not a BUY/SELL signal.
+
+### ATR, compression, squeeze and ADX
+
+- ATR = simple mean of the latest 14 causal true ranges.
+- ATR ratio = latest 14-TR ATR divided by the immediately preceding 14-TR baseline.
+- Compression score = clamp(1 - ATR ratio, 0, 1).
+- Squeeze candidate = compression score >= 0.25.
+- Squeeze-release age starts only when a later closed bar changes the state from squeeze to non-squeeze.
+- ADX uses 14-period directional movement/DX windows and averages the latest 14 causal DX values; it therefore requires closed-bar warm-up.
+
+### EMA/HTF context
+
+EMA uses period 20. EMA slope is the five-closed-bar EMA change divided by ATR and by five, expressed as ATR-per-bar. Direction state is +1 / 0 / -1 using +/-0.01 ATR-per-bar as the numeric neutral band.
+
+M5/M15/H1 direction states are context only. `HtfAlignedUp`, `HtfAlignedDown`, `HtfConflict` and `TrendAlignmentScore` report alignment; they never block Long/Short by product rule.
