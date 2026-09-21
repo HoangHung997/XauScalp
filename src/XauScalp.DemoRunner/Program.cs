@@ -285,7 +285,7 @@ internal static class Program
                 flushEveryRecords: 1);
 
         long? lastRecordedSequence =
-            await rawStore.GetLastSequenceIdAsync(
+            await rawStore.GetHighestSourceSequenceIdAsync(
                 cancellationToken).ConfigureAwait(false);
 
         long restoredEvents = await RestoreFeatureStateAsync(
