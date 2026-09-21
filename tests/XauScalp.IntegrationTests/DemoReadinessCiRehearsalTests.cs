@@ -134,7 +134,7 @@ public sealed class DemoReadinessCiRehearsalTests
                     broker,
                     journal,
                     Ownership,
-                    new ExecutionEngineOptions(maxSafeSubmitRetries: 1),
+                    new ExecutionEngineOptions(MaxSafeSubmitRetries: 1),
                     new FixedTimeProvider(now));
 
                 ExecutionResult open = await execution.SubmitAsync(
@@ -152,7 +152,7 @@ public sealed class DemoReadinessCiRehearsalTests
                 broker,
                 restartedJournal,
                 Ownership,
-                new ExecutionEngineOptions(maxSafeSubmitRetries: 1),
+                new ExecutionEngineOptions(MaxSafeSubmitRetries: 1),
                 new FixedTimeProvider(now.AddSeconds(1)));
 
             ExecutionReconciliationReport reconciliation =
@@ -250,7 +250,9 @@ public sealed class DemoReadinessCiRehearsalTests
             state,
             staleDecision,
             Portfolio(now),
-            RiskSettingsForRehearsal(maxDecisionAgeMs: 1_000));
+            RiskSettingsForRehearsal(
+                maxDecisionAgeMs: 1_000,
+                maxFeatureAgeMs: 10_000));
 
         Assert.Equal(
             RiskDecisionOutcome.Rejected,
@@ -454,7 +456,8 @@ public sealed class DemoReadinessCiRehearsalTests
     }
 
     private static RiskSettings RiskSettingsForRehearsal(
-        int maxDecisionAgeMs = 1_000)
+        int maxDecisionAgeMs = 1_000,
+        int maxFeatureAgeMs = 1_000)
     {
         return new RiskSettings(
             maxRiskPerTradePct: 0.50,
@@ -466,7 +469,7 @@ public sealed class DemoReadinessCiRehearsalTests
             maxSpreadAtrRatio: 0.5,
             maxSlippagePoints: 30,
             maxDecisionAgeMs,
-            maxFeatureAgeMs: 1_000,
+            maxFeatureAgeMs,
             minFreeMarginPct: 20,
             cooldownAfterLossSec: 0,
             cooldownAfterExecutionFailureSec: 0,
@@ -481,12 +484,12 @@ public sealed class DemoReadinessCiRehearsalTests
         return new PortfolioState(
             ContractVersions.PortfolioStateV1,
             now,
-            Balance: 10_000m,
-            Equity: 10_000m,
-            FreeMargin: 9_000m,
-            RealizedPnlToday: 0m,
-            TradesToday: 0,
-            Positions: []);
+            balance: 10_000m,
+            equity: 10_000m,
+            freeMargin: 9_000m,
+            realizedPnlToday: 0m,
+            tradesToday: 0,
+            positions: []);
     }
 
     private static TradePlan PlanFrom(
