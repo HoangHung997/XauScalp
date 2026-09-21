@@ -13,5 +13,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/XauScalp.Execution/XauScalp.Execution.csproj" />
+    <ProjectReference Include="../../src/XauScalp.Persistence/XauScalp.Persistence.csproj" />
   </ItemGroup>
 </Project>
