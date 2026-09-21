@@ -97,3 +97,90 @@ public sealed class WindowsCredentialManagerJevSecretProvider : IJevSecretProvid
         public IntPtr UserName;
     }
 }
+
+
+public sealed class EnvironmentJevSecretProvider : IJevSecretProvider
+{
+    public ValueTask<JevSecret> GetSecretAsync(
+        string secretReference,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        const string prefix = "env:";
+        if (string.IsNullOrWhiteSpace(secretReference)
+            || !secretReference.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            throw new JevSecretUnavailableException(
+                "Environment JEV secret references must use env:VARIABLE_NAME.");
+        }
+
+        string variableName = secretReference[prefix.Length..].Trim();
+        if (string.IsNullOrWhiteSpace(variableName))
+        {
+            throw new JevSecretUnavailableException(
+                "Environment JEV secret reference is missing the variable name.");
+        }
+
+        string? value = Environment.GetEnvironmentVariable(variableName);
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new JevSecretUnavailableException(
+                $"Environment variable '{variableName}' is not available.");
+        }
+
+        return ValueTask.FromResult(new JevSecret(value));
+    }
+}
+
+public sealed class ReferenceJevSecretProvider : IJevSecretProvider
+{
+    private readonly IJevSecretProvider _environment;
+    private readonly IJevSecretProvider _credentialManager;
+
+    public ReferenceJevSecretProvider(
+        IJevSecretProvider? environment = null,
+        IJevSecretProvider? credentialManager = null)
+    {
+        _environment = environment ?? new EnvironmentJevSecretProvider();
+        _credentialManager = credentialManager
+            ?? new WindowsCredentialManagerJevSecretProvider();
+    }
+
+    public ValueTask<JevSecret> GetSecretAsync(
+        string secretReference,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(secretReference))
+        {
+            throw new JevSecretUnavailableException(
+                "JEV secret reference is required.");
+        }
+
+        if (secretReference.StartsWith("env:", StringComparison.Ordinal))
+        {
+            return _environment.GetSecretAsync(
+                secretReference,
+                cancellationToken);
+        }
+
+        const string credentialPrefix = "cred:";
+        string target = secretReference.StartsWith(
+            credentialPrefix,
+            StringComparison.Ordinal)
+            ? secretReference[credentialPrefix.Length..].Trim()
+            : secretReference.Trim();
+
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            throw new JevSecretUnavailableException(
+                "Credential Manager JEV secret reference is missing the target name.");
+        }
+
+        return _credentialManager.GetSecretAsync(
+            target,
+            cancellationToken);
+    }
+}
