@@ -489,6 +489,117 @@ bool HasHistoryEntry(
    return false;
 }
 
+long FindHistoryPositionIdentifier(
+   const string broker_comment,
+   const long magic_number)
+{
+   if(!HistorySelect(0, TimeCurrent()))
+      return 0;
+
+   const int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      const ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0)
+         continue;
+
+      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol)
+         continue;
+
+      if((long)HistoryDealGetInteger(deal, DEAL_MAGIC) != magic_number)
+         continue;
+
+      const long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      if(entry != DEAL_ENTRY_IN && entry != DEAL_ENTRY_INOUT)
+         continue;
+
+      if(HistoryDealGetString(deal, DEAL_COMMENT) != broker_comment)
+         continue;
+
+      return HistoryDealGetInteger(deal, DEAL_POSITION_ID);
+   }
+
+   return 0;
+}
+
+string ClosedTradeJson(
+   const string broker_comment,
+   const string trade_intent_id,
+   const long magic_number)
+{
+   if(StringLen(trade_intent_id) == 0)
+      return "";
+
+   const long position_identifier = FindHistoryPositionIdentifier(
+      broker_comment,
+      magic_number);
+
+   if(position_identifier <= 0)
+      return "";
+
+   if(!HistorySelect(0, TimeCurrent()))
+      return "";
+
+   double realized_pnl = 0.0;
+   double commission_cost = 0.0;
+   long closed_at_ms = 0;
+   bool has_exit = false;
+
+   const int total = HistoryDealsTotal();
+   for(int i = 0; i < total; i++)
+   {
+      const ulong deal = HistoryDealGetTicket(i);
+      if(deal == 0)
+         continue;
+
+      if(HistoryDealGetString(deal, DEAL_SYMBOL) != _Symbol)
+         continue;
+
+      if((long)HistoryDealGetInteger(deal, DEAL_MAGIC) != magic_number)
+         continue;
+
+      if(HistoryDealGetInteger(deal, DEAL_POSITION_ID)
+         != position_identifier)
+         continue;
+
+      realized_pnl += HistoryDealGetDouble(deal, DEAL_PROFIT);
+      realized_pnl += HistoryDealGetDouble(deal, DEAL_SWAP);
+
+      const double commission =
+         HistoryDealGetDouble(deal, DEAL_COMMISSION);
+      const double fee = HistoryDealGetDouble(deal, DEAL_FEE);
+
+      if(commission < 0.0)
+         commission_cost += -commission;
+
+      if(fee < 0.0)
+         commission_cost += -fee;
+
+      const long entry = HistoryDealGetInteger(deal, DEAL_ENTRY);
+      if(entry == DEAL_ENTRY_OUT
+         || entry == DEAL_ENTRY_OUT_BY
+         || entry == DEAL_ENTRY_INOUT)
+      {
+         has_exit = true;
+         const long deal_time_ms =
+            HistoryDealGetInteger(deal, DEAL_TIME_MSC);
+         if(deal_time_ms > closed_at_ms)
+            closed_at_ms = deal_time_ms;
+      }
+   }
+
+   if(!has_exit || closed_at_ms <= 0)
+      return "";
+
+   return StringFormat(
+      "{\"tradeIntentId\":\"%s\",\"realizedPnlMoney\":%s,"
+      "\"commissionCostMoney\":%s,\"closedAtUnixMs\":%s}",
+      JsonEscape(trade_intent_id),
+      DoubleToString(realized_pnl, 8),
+      DoubleToString(commission_cost, 8),
+      IntegerToString(closed_at_ms));
+}
+
 bool SelectOwnedPosition(
    const ulong ticket,
    const string broker_comment,
@@ -905,7 +1016,9 @@ void ExecuteQueryState(const string line)
    orders += "]";
 
    string closed = "[";
+   string closed_trades = "[";
    bool first_closed = true;
+   bool first_closed_trade = true;
    const int mapping_count = ArraySize(g_mapping_comments);
    for(int i = 0; i < mapping_count; i++)
    {
@@ -926,8 +1039,22 @@ void ExecuteQueryState(const string line)
          closed += ",";
       closed += JsonStringOrNull(g_mapping_trade_intents[i]);
       first_closed = false;
+
+      const string closed_trade_json = ClosedTradeJson(
+         g_mapping_comments[i],
+         g_mapping_trade_intents[i],
+         g_mapping_magic_numbers[i]);
+
+      if(StringLen(closed_trade_json) > 0)
+      {
+         if(!first_closed_trade)
+            closed_trades += ",";
+         closed_trades += closed_trade_json;
+         first_closed_trade = false;
+      }
    }
    closed += "]";
+   closed_trades += "]";
 
    const double balance = AccountInfoDouble(ACCOUNT_BALANCE);
    const double equity = AccountInfoDouble(ACCOUNT_EQUITY);
@@ -999,7 +1126,8 @@ void ExecuteQueryState(const string line)
       "\"requestedVolumeLots\":0.0,\"filledVolumeLots\":0.0,"
       "\"latencyMs\":%s,\"safeToRetry\":false,"
       "\"positions\":%s,\"orders\":%s,"
-      "\"closedTradeIntentIds\":%s,\"account\":%s,\"symbolRisk\":%s}",
+      "\"closedTradeIntentIds\":%s,\"account\":%s,\"symbolRisk\":%s,"
+      "\"closedTrades\":%s}",
       PROTOCOL_VERSION,
       JsonEscape(command_id),
       JsonEscape(g_session_id),
@@ -1008,7 +1136,8 @@ void ExecuteQueryState(const string line)
       orders,
       closed,
       account,
-      symbol_risk);
+      symbol_risk,
+      closed_trades);
 
    if(WriteEvent(json))
       AddUnique(g_final_command_ids, command_id);
