@@ -19,11 +19,10 @@ public sealed class DemoRunnerTests
 
         try
         {
-            string json = ValidConfigJson()
-                .Replace(
-                    "\"jev\": {",
-                    "\"apiKey\": \"forbidden\", \"jev\": {",
-                    StringComparison.Ordinal);
+            string json = ValidConfigJson();
+            json = json.Insert(
+                1,
+                "\"apiKey\":\"forbidden\",");
 
             File.WriteAllText(path, json);
 
