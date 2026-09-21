@@ -38,6 +38,9 @@ jobs:
       - name: Test feature evaluation and ablation pipeline
         run: python -m unittest discover -s research/feature-evaluation/tests -p "test_*.py"
 
+      - name: Test demo readiness evidence gate
+        run: python -m unittest discover -s research/demo-readiness/tests -p "test_*.py"
+
 
       - name: Restore
         run: dotnet restore XauScalp.sln
@@ -50,3 +53,13 @@ jobs:
 
       - name: Test
         run: dotnet test XauScalp.sln --configuration Release --no-build --verbosity normal
+
+      - name: Generate XSP-017 CI rehearsal evidence
+        run: python research/demo-readiness/generate_ci_rehearsal_evidence.py --output artifacts/xsp017-ci-rehearsal.json
+
+      - name: Upload XSP-017 CI rehearsal evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: xsp017-ci-rehearsal-evidence
+          path: artifacts/xsp017-ci-rehearsal.json
+          if-no-files-found: error
