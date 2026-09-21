@@ -336,7 +336,8 @@ public sealed class DemoTradingRuntimeCoordinatorTests
                 MaxVolume: 100m,
                 VolumeStep: 0.01m,
                 MinStopDistance: 0.50m,
-                EstimatedMarginPerLotMoney: 100m));
+                EstimatedMarginPerLotMoney: 100m),
+            ClosedTrades: []);
     }
 
     private static XauMarketState State(
