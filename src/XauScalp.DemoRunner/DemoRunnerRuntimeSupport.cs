@@ -3,43 +3,84 @@ using XauScalp.Features;
 
 namespace XauScalp.DemoRunner;
 
-public sealed class DemoRuntimeFeatureContext
+public sealed class CausalAtrReplayContextProvider
+    : XauScalp.Replay.IReplayFeatureContextProvider
 {
-    private readonly DemoCostConfiguration _cost;
-    private double? _lastAtrM1;
+    private const int AtrPeriod = 14;
 
-    public DemoRuntimeFeatureContext(
-        DemoCostConfiguration cost)
+    private readonly CausalBarAggregator _bars;
+    private readonly Queue<decimal> _trueRanges = new();
+    private decimal? _previousM1Close;
+    private double? _atrM1;
+
+    public CausalAtrReplayContextProvider(
+        BrokerClockConfiguration clockConfiguration)
     {
-        _cost = cost ?? throw new ArgumentNullException(nameof(cost));
+        _bars = new CausalBarAggregator(
+            new MarketClockNormalizer(
+                clockConfiguration
+                ?? throw new ArgumentNullException(
+                    nameof(clockConfiguration))),
+            "demo-context-bars-v1");
     }
 
-    public FeatureExternalContext Build(
-        DateTimeOffset observedAtUtc)
+    public FeatureExternalContext? GetContext(
+        MarketEvent marketEvent,
+        XauScalp.Replay.ReplayCostScenario costScenario)
     {
-        return new FeatureExternalContext(
-            observedAtUtc,
-            atrM1: _lastAtrM1,
-            estimatedLatencyMs: _cost.EstimatedLatencyMs,
-            estimatedSlippagePoints: _cost.EstimatedSlippagePoints);
-    }
+        ArgumentNullException.ThrowIfNull(marketEvent);
+        ArgumentNullException.ThrowIfNull(costScenario);
 
-    public void ObserveState(XauMarketState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        NumericFeatureValue? atr = state.Features.FirstOrDefault(
-            static feature => string.Equals(
-                feature.Name,
-                FeatureNames.AtrM1,
-                StringComparison.Ordinal));
-
-        if (atr?.IsAvailable == true
-            && atr.Value is double value
-            && double.IsFinite(value)
-            && value > 0)
+        if (marketEvent is not TickEvent tick)
         {
-            _lastAtrM1 = value;
+            return null;
+        }
+
+        IReadOnlyList<BarEvent> events = _bars.Apply(tick);
+        foreach (BarEvent barEvent in events)
+        {
+            if (barEvent.UpdateKind != BarUpdateKind.Closed
+                || barEvent.Bar is not ClosedBarState closed
+                || closed.Timeframe != BarTimeframe.M1)
+            {
+                continue;
+            }
+
+            ObserveClosedM1(closed);
+        }
+
+        return new FeatureExternalContext(
+            tick.TimestampUtc,
+            atrM1: _atrM1,
+            estimatedLatencyMs:
+                costScenario.EstimatedLatencyMs,
+            estimatedSlippagePoints:
+                costScenario.EstimatedSlippagePoints);
+    }
+
+    private void ObserveClosedM1(ClosedBarState bar)
+    {
+        decimal highLow = bar.High - bar.Low;
+        decimal trueRange = _previousM1Close is decimal previous
+            ? Math.Max(
+                highLow,
+                Math.Max(
+                    Math.Abs(bar.High - previous),
+                    Math.Abs(bar.Low - previous)))
+            : highLow;
+
+        _previousM1Close = bar.Close;
+        _trueRanges.Enqueue(trueRange);
+
+        while (_trueRanges.Count > AtrPeriod)
+        {
+            _ = _trueRanges.Dequeue();
+        }
+
+        if (_trueRanges.Count == AtrPeriod)
+        {
+            _atrM1 = decimal.ToDouble(
+                _trueRanges.Sum() / AtrPeriod);
         }
     }
 }
