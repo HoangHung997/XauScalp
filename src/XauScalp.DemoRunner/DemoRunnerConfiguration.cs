@@ -45,6 +45,15 @@ public sealed record DemoRunnerConfiguration
 
     public string NativeArtifactManifestPath { get; init; } = string.Empty;
 
+    public string MarketBridgeEx5Path { get; init; } = string.Empty;
+
+    public string DemoExecutionBridgeEx5Path { get; init; } = string.Empty;
+
+    public string[] KnownLimitations { get; init; } =
+    [
+        "Broker-demo evidence is limited to the observed broker/account/session window."
+    ];
+
     public JevRunnerConfiguration Jev { get; init; } = new();
 
     public DecisionModelType PrimaryDecisionModel { get; init; } =
@@ -135,6 +144,14 @@ public sealed record DemoRunnerConfiguration
         Required(
             NativeArtifactManifestPath,
             nameof(NativeArtifactManifestPath));
+
+        if (KnownLimitations is null
+            || KnownLimitations.Length == 0
+            || KnownLimitations.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidDataException(
+                "KnownLimitations must contain at least one non-empty observed limitation.");
+        }
 
         if (!string.Equals(
                 CanonicalSymbol,
