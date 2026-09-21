@@ -66,4 +66,44 @@ public static class FeatureNames
     public const string MicroRange1s = nameof(MicroRange1s);
     public const string MicroRange5s = nameof(MicroRange5s);
     public const string BurstZScore = nameof(BurstZScore);
+
+    public const string NearestSwingHighDistanceAtr = nameof(NearestSwingHighDistanceAtr);
+    public const string NearestSwingLowDistanceAtr = nameof(NearestSwingLowDistanceAtr);
+    public const string BuySideSweepDepthAtr = nameof(BuySideSweepDepthAtr);
+    public const string SellSideSweepDepthAtr = nameof(SellSideSweepDepthAtr);
+    public const string CloseBackInsideDistanceAtr = nameof(CloseBackInsideDistanceAtr);
+    public const string EqualHighStrength = nameof(EqualHighStrength);
+    public const string EqualLowStrength = nameof(EqualLowStrength);
+    public const string UpperMagnetScore = nameof(UpperMagnetScore);
+    public const string LowerMagnetScore = nameof(LowerMagnetScore);
+    public const string UpperMagnetDistanceAtr = nameof(UpperMagnetDistanceAtr);
+    public const string LowerMagnetDistanceAtr = nameof(LowerMagnetDistanceAtr);
+    public const string PullUp = nameof(PullUp);
+    public const string PullDown = nameof(PullDown);
+    public const string PullDelta = nameof(PullDelta);
+    public const string InsideVacuum = nameof(InsideVacuum);
+    public const string VacuumUpWidthAtr = nameof(VacuumUpWidthAtr);
+    public const string VacuumDownWidthAtr = nameof(VacuumDownWidthAtr);
+    public const string AbsorptionUpScore = nameof(AbsorptionUpScore);
+    public const string AbsorptionDownScore = nameof(AbsorptionDownScore);
+    public const string PdhDistanceAtr = nameof(PdhDistanceAtr);
+    public const string PdlDistanceAtr = nameof(PdlDistanceAtr);
+    public const string PwhDistanceAtr = nameof(PwhDistanceAtr);
+    public const string PwlDistanceAtr = nameof(PwlDistanceAtr);
+
+    public const string LiquidityTouchAgeMs = nameof(LiquidityTouchAgeMs);
+    public const string SweepOccurred = nameof(SweepOccurred);
+    public const string SweepDirection = nameof(SweepDirection);
+    public const string SweepDepthAtr = nameof(SweepDepthAtr);
+    public const string WickBodyRatioAtSweep = nameof(WickBodyRatioAtSweep);
+    public const string CloseBackInsideAtr = nameof(CloseBackInsideAtr);
+    public const string VolumeRatioAtSweep = nameof(VolumeRatioAtSweep);
+    public const string VelocityIntoLevel = nameof(VelocityIntoLevel);
+    public const string PeakVelocityAtLevel = nameof(PeakVelocityAtLevel);
+    public const string DecelerationAfterTouch = nameof(DecelerationAfterTouch);
+    public const string DirectionFlipAfterTouch = nameof(DirectionFlipAfterTouch);
+    public const string DirectionFlipDelayMs = nameof(DirectionFlipDelayMs);
+    public const string MicroRetestOccurred = nameof(MicroRetestOccurred);
+    public const string MicroRetestDepthAtr = nameof(MicroRetestDepthAtr);
+    public const string ResumeVelocity = nameof(ResumeVelocity);
 }
