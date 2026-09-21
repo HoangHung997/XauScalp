@@ -174,12 +174,20 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway, IMt
             tradesToday: 0,
             positions);
 
+        Mt5DemoClosedTradeWire[] closedTrades =
+            (reply.ClosedTrades ?? Array.Empty<Mt5DemoClosedTradeWire>())
+            .Select(ValidateClosedTrade)
+            .OrderBy(static item => item.ClosedAtUnixMs)
+            .ThenBy(static item => item.TradeIntentId)
+            .ToArray();
+
         return new Mt5DemoBrokerContextSnapshot(
             _options.CanonicalSymbol,
             _options.BrokerSymbol,
             reconciliation,
             portfolio,
-            symbolRisk);
+            symbolRisk,
+            closedTrades);
     }
 
     private async Task<Mt5DemoExecutionReply> QueryStateReplyAsync(
@@ -471,6 +479,42 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway, IMt
             maePrice: 0m,
             openedAt,
             _options.Ownership);
+    }
+
+    private static Mt5DemoClosedTradeWire ValidateClosedTrade(
+        Mt5DemoClosedTradeWire trade)
+    {
+        if (trade.TradeIntentId == Guid.Empty)
+        {
+            throw new InvalidDataException(
+                "MT5 demo closed trade has an empty TradeIntentId.");
+        }
+
+        if (trade.CommissionCostMoney < 0)
+        {
+            throw new InvalidDataException(
+                "MT5 demo closed-trade commission cost cannot be negative.");
+        }
+
+        if (trade.ClosedAtUnixMs <= 0)
+        {
+            throw new InvalidDataException(
+                "MT5 demo closed trade is missing a valid close timestamp.");
+        }
+
+        try
+        {
+            _ = DateTimeOffset.FromUnixTimeMilliseconds(
+                trade.ClosedAtUnixMs);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new InvalidDataException(
+                "MT5 demo closed trade has an invalid close timestamp.",
+                exception);
+        }
+
+        return trade;
     }
 
     private static void ValidateAccountContext(
