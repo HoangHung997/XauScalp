@@ -63,6 +63,8 @@ public sealed record DemoRunnerConfiguration
 
     public int ExternalContextMaxAgeSec { get; init; } = 60;
 
+    public int MaxBrokerTickAgeSec { get; init; } = 5;
+
     public bool StopAfterFirstExecution { get; init; }
 
     public static DemoRunnerConfiguration Load(string path)
@@ -169,6 +171,12 @@ public sealed record DemoRunnerConfiguration
         {
             throw new InvalidDataException(
                 "ExternalContextMaxAgeSec must be positive.");
+        }
+
+        if (MaxBrokerTickAgeSec <= 0)
+        {
+            throw new InvalidDataException(
+                "MaxBrokerTickAgeSec must be positive.");
         }
 
         Jev.Validate();
