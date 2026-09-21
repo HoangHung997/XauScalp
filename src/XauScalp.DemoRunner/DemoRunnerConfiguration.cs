@@ -1,7 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using XauScalp.DecisionModels;
 using XauScalp.Domain;
 using XauScalp.Features;
+using XauScalp.MarketData;
 
 namespace XauScalp.DemoRunner;
 
