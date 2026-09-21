@@ -76,12 +76,13 @@ public sealed class CausalLiquidityTrackerTests
         var tracker = TrackerWithUpperAndLowerSwing();
         DateTimeOffset t = Utc(12, 10, 0);
 
-        tracker.UpdateTick(Tick(1, t, 104.80m), Inputs(1, velocity: 1));
-        tracker.UpdateTick(Tick(2, t.AddMilliseconds(500), 105.30m), Inputs(1, velocity: 1.2));
-        tracker.UpdateTick(Tick(3, t.AddSeconds(1), 104.80m), Inputs(1, velocity: -0.8, deceleration: 0.9));
-        tracker.UpdateTick(Tick(4, t.AddSeconds(2), 104.60m), Inputs(1, velocity: -0.6, deceleration: 0.9));
-        tracker.UpdateTick(Tick(5, t.AddSeconds(3), 104.97m), Inputs(1, velocity: 0.4, deceleration: 0.8));
-        tracker.UpdateTick(Tick(6, t.AddSeconds(4), 104.70m), Inputs(1, velocity: -0.7, deceleration: 0.8));
+        // Tick helper uses a 0.20 spread, so midpoint = bid + 0.10.
+        tracker.UpdateTick(Tick(1, t, 104.70m), Inputs(1, velocity: 1));
+        tracker.UpdateTick(Tick(2, t.AddMilliseconds(500), 105.20m), Inputs(1, velocity: 1.2));
+        tracker.UpdateTick(Tick(3, t.AddSeconds(1), 104.70m), Inputs(1, velocity: -0.8, deceleration: 0.9));
+        tracker.UpdateTick(Tick(4, t.AddSeconds(2), 104.50m), Inputs(1, velocity: -0.6, deceleration: 0.9));
+        tracker.UpdateTick(Tick(5, t.AddSeconds(3), 104.87m), Inputs(1, velocity: 0.4, deceleration: 0.8));
+        tracker.UpdateTick(Tick(6, t.AddSeconds(4), 104.60m), Inputs(1, velocity: -0.7, deceleration: 0.8));
 
         IReadOnlyList<LiquidityFeatureMetric> snapshot = tracker.Snapshot(t.AddSeconds(4), 104.80m, 1);
 
