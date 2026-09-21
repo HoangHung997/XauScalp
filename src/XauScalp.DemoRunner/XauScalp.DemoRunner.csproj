@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../XauScalp.Domain/XauScalp.Domain.csproj" />
+    <ProjectReference Include="../XauScalp.MarketData/XauScalp.MarketData.csproj" />
+    <ProjectReference Include="../XauScalp.Features/XauScalp.Features.csproj" />
+    <ProjectReference Include="../XauScalp.DecisionModels/XauScalp.DecisionModels.csproj" />
+    <ProjectReference Include="../XauScalp.Risk/XauScalp.Risk.csproj" />
+    <ProjectReference Include="../XauScalp.Execution/XauScalp.Execution.csproj" />
+    <ProjectReference Include="../XauScalp.Persistence/XauScalp.Persistence.csproj" />
+    <ProjectReference Include="../XauScalp.Replay/XauScalp.Replay.csproj" />
+    <ProjectReference Include="../XauScalp.Runtime/XauScalp.Runtime.csproj" />
+  </ItemGroup>
+</Project>
