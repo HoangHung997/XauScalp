@@ -1,0 +1,20 @@
+{
+  "evidenceClass": "BROKER_DEMO",
+  "liveMoneyEnabled": false,
+  "datasetId": "sha256:<dataset-sha256>",
+  "datasetSha256": "<64-hex-sha256>",
+  "replayRunId": "<replay-run-id>",
+  "replayOutputSha256": "<64-hex-sha256>",
+  "brokerSymbol": "XAUUSD.G",
+  "dataSourceId": "mt5-demo",
+  "demoExecutionId": "<broker-demo-execution-id>",
+  "capturedAtUtc": "2026-09-21T00:00:00Z",
+  "tickCount": 1,
+  "featureParityPassed": true,
+  "replayDeterminismPassed": true,
+  "primaryShadowPassed": true,
+  "riskPassed": true,
+  "restartReconnectPassed": true,
+  "modelOutagePassed": true,
+  "staleDataPassed": true
+}
