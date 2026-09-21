@@ -46,6 +46,7 @@ public enum BarUpdateKind
 [JsonDerivedType(typeof(ConnectionStatusEvent), "connection")]
 [JsonDerivedType(typeof(SymbolSpecificationEvent), "symbolSpecification")]
 [JsonDerivedType(typeof(FeedGapEvent), "feedGap")]
+[JsonDerivedType(typeof(NewsContextEvent), "newsContext")]
 public abstract record MarketEvent
 {
     protected MarketEvent(
@@ -313,6 +314,81 @@ public sealed record FeedGapEvent : MarketEvent
     public long ObservedSequenceId { get; }
 
     public FeedSequenceAnomalyKind Kind { get; }
+}
+
+public sealed record NewsContextEvent : MarketEvent
+{
+    [JsonConstructor]
+    public NewsContextEvent(
+        string contractVersion,
+        DateTimeOffset timestampUtc,
+        long sequenceId,
+        string dataSourceId,
+        string symbol,
+        string brokerSymbol,
+        bool isAvailable,
+        double? newsDistanceBeforeSec,
+        double? newsDistanceAfterSec,
+        string source,
+        int? sourceErrorCode)
+        : base(
+            contractVersion,
+            timestampUtc,
+            brokerTimestamp: null,
+            sequenceId,
+            dataSourceId,
+            symbol,
+            brokerSymbol)
+    {
+        Source = ContractGuard.Required(source, nameof(source));
+        IsAvailable = isAvailable;
+        SourceErrorCode = sourceErrorCode;
+
+        if (isAvailable)
+        {
+            if (newsDistanceBeforeSec is not double before
+                || !double.IsFinite(before)
+                || before < 0
+                || newsDistanceAfterSec is not double after
+                || !double.IsFinite(after)
+                || after < 0)
+            {
+                throw new ArgumentException(
+                    "Available news context requires finite non-negative before/after distances.");
+            }
+
+            NewsDistanceBeforeSec = before;
+            NewsDistanceAfterSec = after;
+        }
+        else
+        {
+            if (newsDistanceBeforeSec is not null
+                || newsDistanceAfterSec is not null)
+            {
+                throw new ArgumentException(
+                    "Unavailable news context must not carry synthetic distances.");
+            }
+
+            NewsDistanceBeforeSec = null;
+            NewsDistanceAfterSec = null;
+        }
+    }
+
+    public bool IsAvailable { get; }
+
+    /// <summary>
+    /// Seconds until the nearest upcoming high-impact event in the queried horizon.
+    /// </summary>
+    public double? NewsDistanceBeforeSec { get; }
+
+    /// <summary>
+    /// Seconds since the nearest past high-impact event in the queried horizon.
+    /// </summary>
+    public double? NewsDistanceAfterSec { get; }
+
+    public string Source { get; }
+
+    public int? SourceErrorCode { get; }
 }
 
 public sealed record SymbolSpecification
