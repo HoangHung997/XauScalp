@@ -15,6 +15,7 @@ public sealed record BrokerExecutionResponse(
     BrokerExecutionOutcome Outcome,
     string? BrokerOrderId,
     string? BrokerDealId,
+    string? BrokerPositionId,
     decimal? RequestedPrice,
     decimal? FillPrice,
     decimal RequestedVolumeLots,
