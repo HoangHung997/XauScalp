@@ -385,6 +385,49 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void OldBrokerTimestamp_FailsClosedEvenWhenIngestionTimestampIsFresh()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            state = engine.Update(
+                Tick(
+                    index + 1,
+                    start.AddMilliseconds(index * 500),
+                    100m + index * 0.01m));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+
+        DateTimeOffset freshIngestion = start.AddSeconds(21);
+        var staleBrokerTick = new TickEvent(
+            ContractVersions.MarketEventV1,
+            freshIngestion,
+            start.AddSeconds(10),
+            sequenceId: 50,
+            dataSourceId: "mt5-test",
+            symbol: "XAUUSD",
+            brokerSymbol: "XAUUSD.G",
+            bid: 101m,
+            ask: 101.2m,
+            last: null,
+            tickVolume: 1,
+            TickFlags.Bid | TickFlags.Ask | TickFlags.Volume);
+
+        state = engine.Update(staleBrokerTick);
+
+        Assert.False(state.Readiness.RequiredP0Ready);
+        Assert.Contains(
+            "stale broker tick",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void FeedGap_PermanentlyLocksReadinessForCurrentEngineInstance()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
