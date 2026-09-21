@@ -71,6 +71,35 @@ class DemoReadinessEvidenceTests(unittest.TestCase):
         ):
             evidence.validate_broker_demo_manifest(manifest)
 
+    def test_dataset_identity_must_match_hash(self):
+        manifest = self._manifest()
+        manifest["datasetId"] = "sha256:" + ("3" * 64)
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "datasetId must equal",
+        ):
+            evidence.validate_broker_demo_manifest(manifest)
+
+    def test_non_utc_capture_time_is_rejected(self):
+        manifest = self._manifest()
+        manifest["capturedAtUtc"] = "2026-09-21T07:00:00+07:00"
+
+        with self.assertRaisesRegex(ValueError, "explicitly UTC"):
+            evidence.validate_broker_demo_manifest(manifest)
+
+    def test_unresolved_p0_p1_issue_is_rejected(self):
+        manifest = self._manifest()
+        manifest["unresolvedP0P1CorrectnessIssues"] = [
+            "example correctness blocker"
+        ]
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unresolved P0/P1",
+        ):
+            evidence.validate_broker_demo_manifest(manifest)
+
     def test_require_external_returns_nonzero_when_manifest_missing(self):
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "evidence.json"
@@ -104,6 +133,11 @@ class DemoReadinessEvidenceTests(unittest.TestCase):
         return {
             "evidenceClass": "BROKER_DEMO",
             "liveMoneyEnabled": False,
+            "codeCommit": "a" * 40,
+            "ciRunUrl": (
+                "https://github.com/HoangHung997/XauScalp/actions/runs/123"
+            ),
+            "canonicalSymbol": "XAUUSD",
             "datasetId": "sha256:" + ("1" * 64),
             "datasetSha256": "1" * 64,
             "replayRunId": "replay-demo-001",
@@ -113,6 +147,17 @@ class DemoReadinessEvidenceTests(unittest.TestCase):
             "demoExecutionId": "demo-exec-001",
             "capturedAtUtc": "2026-09-21T00:00:00Z",
             "tickCount": 1000,
+            "jevLatencyP95Ms": 45.0,
+            "xauNativeLatencyP95Ms": 2.5,
+            "costAssumptions": {
+                "slippagePoints": 3.0,
+                "commissionPerLot": 7.5,
+                "latencyMs": 12.0,
+            },
+            "knownLimitations": [
+                "Demo broker evidence only; live money remains disabled."
+            ],
+            "unresolvedP0P1CorrectnessIssues": [],
             "featureParityPassed": True,
             "replayDeterminismPassed": True,
             "primaryShadowPassed": True,
