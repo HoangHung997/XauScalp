@@ -92,6 +92,26 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void StructureRegimeSlice_IsIntegratedWithoutFutureBarWarmup()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState state = engine.Update(Tick(1, start, 100m));
+
+        Assert.Single(state.Features, feature => feature.Name == FeatureNames.AtrM1);
+        Assert.Single(state.Features, feature => feature.Name == FeatureNames.BosDirection);
+        Assert.Single(state.Features, feature => feature.Name == FeatureNames.HtfConflict);
+
+        NumericFeatureValue atr = Feature(state, FeatureNames.AtrM1);
+        Assert.False(atr.IsAvailable);
+        Assert.Contains(
+            "closed M1",
+            atr.UnavailableReason ?? string.Empty,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Acceleration_UsesOnlyTwoCausalHalfWindows()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
