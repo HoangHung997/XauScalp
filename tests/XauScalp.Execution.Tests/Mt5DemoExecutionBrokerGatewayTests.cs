@@ -240,6 +240,15 @@ public sealed class Mt5DemoExecutionBrokerGatewayTests
                 VolumeStep: 0.01m,
                 MinStopDistance: 0.50m,
                 EstimatedMarginPerLotMoney: 500m),
+            ClosedTrades =
+            [
+                new Mt5DemoClosedTradeWire(
+                    intent,
+                    RealizedPnlMoney: -12.5m,
+                    CommissionCostMoney: 1.5m,
+                    ClosedAtUnixMs: now.AddMinutes(-1)
+                        .ToUnixTimeMilliseconds()),
+            ],
         });
 
         var gateway = new Mt5DemoExecutionBrokerGateway(
@@ -273,6 +282,12 @@ public sealed class Mt5DemoExecutionBrokerGatewayTests
             context.SymbolRisk.EstimatedMarginPerLotMoney);
 
         Assert.Single(context.Reconciliation.Positions);
+
+        Mt5DemoClosedTradeWire closed = Assert.Single(
+            context.ClosedTrades);
+        Assert.Equal(intent, closed.TradeIntentId);
+        Assert.Equal(-12.5m, closed.RealizedPnlMoney);
+        Assert.Equal(1.5m, closed.CommissionCostMoney);
     }
 
     [Fact]
