@@ -1,5 +1,6 @@
 using XauScalp.Domain;
 using XauScalp.Features;
+using XauScalp.MarketData;
 
 namespace XauScalp.DemoRunner;
 
