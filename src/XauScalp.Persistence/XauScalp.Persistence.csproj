@@ -3,5 +3,6 @@
     <ProjectReference Include="../XauScalp.Domain/XauScalp.Domain.csproj" />
     <ProjectReference Include="../XauScalp.MarketData/XauScalp.MarketData.csproj" />
     <ProjectReference Include="../XauScalp.DecisionModels/XauScalp.DecisionModels.csproj" />
+    <ProjectReference Include="../XauScalp.Risk/XauScalp.Risk.csproj" />
   </ItemGroup>
 </Project>
