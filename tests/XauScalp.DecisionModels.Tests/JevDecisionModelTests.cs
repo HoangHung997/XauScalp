@@ -147,9 +147,12 @@ public sealed class JevDecisionModelTests
 
         Assert.Equal("state-stale", stateFailure.Code);
 
-        XauMarketState freshState = MakeState(Utc(12, 0, 9));
+        XauMarketState freshState = MakeState(
+            now.AddMilliseconds(-250));
         var staleProvider = new FakeProvider(
-            request => ValidResponse(request, Utc(12, 0, 9)));
+            request => ValidResponse(
+                request,
+                now.AddSeconds(-1)));
         JevDecisionModel responseModel = CreateModel(
             staleProvider,
             now,
