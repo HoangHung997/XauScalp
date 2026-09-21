@@ -43,6 +43,10 @@ internal static class Program
             && !string.Equals(
                 command,
                 "drill",
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(
+                command,
+                "evidence",
                 StringComparison.OrdinalIgnoreCase))
         {
             PrintUsage();
@@ -99,6 +103,23 @@ internal static class Program
                 return 0;
             }
 
+            if (string.Equals(
+                    command,
+                    "evidence",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                BrokerDemoManifest manifest =
+                    await DemoEvidenceBuilder.BuildAsync(
+                        configuration,
+                        cancellation.Token)
+                    .ConfigureAwait(false);
+
+                Console.WriteLine(
+                    $"Evidence PASS dataset={manifest.DatasetId} "
+                    + $"execution={manifest.DemoExecutionId}.");
+                return 0;
+            }
+
             await RunAsync(
                 configuration,
                 cancellation.Token).ConfigureAwait(false);
@@ -123,7 +144,7 @@ internal static class Program
     private static void PrintUsage()
     {
         Console.Error.WriteLine(
-            "Usage: XauScalp.DemoRunner <run|replay|drill> <config.json>");
+            "Usage: XauScalp.DemoRunner <run|replay|drill|evidence> <config.json>");
     }
 
     private static async Task RunAsync(
