@@ -30,7 +30,9 @@ Run XauScalp against an MT5 **demo** account and produce a JSON manifest matchin
 
 Required evidence:
 
-- real/demo XAU ordered tick dataset ID + SHA-256;
+- exact 40-hex code commit + successful GitHub Actions run URL;
+- canonical symbol `XAUUSD`;
+- real/demo XAU ordered tick dataset ID + SHA-256, with `datasetId = sha256:<datasetSha256>`;
 - replay run ID + replay output SHA-256 for the same dataset;
 - feature parity pass;
 - replay determinism pass;
@@ -41,6 +43,11 @@ Required evidence:
 - model outage pass;
 - stale-data pass;
 - positive tick count;
+- measured JEV and XAU Native P95 latency;
+- explicit slippage/commission/latency cost assumptions;
+- known limitations;
+- an empty `unresolvedP0P1CorrectnessIssues` list;
+- `capturedAtUtc` explicitly in UTC;
 - `liveMoneyEnabled=false`.
 
 Do **not** include account number, password, API key, token, secret or other credentials in evidence files.
