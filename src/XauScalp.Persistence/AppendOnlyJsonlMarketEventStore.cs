@@ -113,6 +113,27 @@ public sealed class AppendOnlyJsonlMarketEventStore : IRawMarketEventSink, IAsyn
         return last;
     }
 
+    public async Task<long?> GetHighestSourceSequenceIdAsync(
+        CancellationToken cancellationToken = default)
+    {
+        long? highest = null;
+
+        await foreach (MarketEvent marketEvent in ReadAllAsync(
+            cancellationToken).ConfigureAwait(false))
+        {
+            if (marketEvent is FeedGapEvent)
+            {
+                continue;
+            }
+
+            highest = highest is null
+                ? marketEvent.SequenceId
+                : Math.Max(highest.Value, marketEvent.SequenceId);
+        }
+
+        return highest;
+    }
+
     public async IAsyncEnumerable<MarketEvent> ReadAllAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
