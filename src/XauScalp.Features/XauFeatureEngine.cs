@@ -843,6 +843,20 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
             missing.Add("market data connection");
         }
 
+        if (_lastTick?.BrokerTimestamp is not DateTimeOffset brokerTimestamp)
+        {
+            missing.Add("broker tick timestamp");
+        }
+        else
+        {
+            DateTimeOffset brokerUtc = brokerTimestamp.ToUniversalTime();
+            if (brokerUtc > asOfUtc
+                || asOfUtc - brokerUtc > _options.MaxBrokerTickAge)
+            {
+                missing.Add("stale broker tick");
+            }
+        }
+
         if (_feedGapDetected)
         {
             missing.Add("unresolved feed gap");
