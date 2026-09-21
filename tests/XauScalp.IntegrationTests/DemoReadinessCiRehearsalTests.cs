@@ -263,6 +263,34 @@ public sealed class DemoReadinessCiRehearsalTests
     }
 
     [Fact]
+    public async Task HardRisk_RejectsStaleMarketStateFailClosed()
+    {
+        XauMarketState state = await BuildReadyStateAsync();
+        DateTimeOffset now = state.TimestampUtc.AddSeconds(5);
+
+        XauDecision freshDecision = Decision(
+            state,
+            DecisionModelType.XauNative,
+            TradeAction.Long,
+            evaluatedAtUtc: now);
+
+        RiskDecision result = RiskEngine(now).Evaluate(
+            state,
+            freshDecision,
+            Portfolio(now),
+            RiskSettingsForRehearsal(
+                maxDecisionAgeMs: 10_000,
+                maxFeatureAgeMs: 1_000));
+
+        Assert.Equal(
+            RiskDecisionOutcome.Rejected,
+            result.Outcome);
+        Assert.Equal(
+            "market-state-stale",
+            result.ReasonCode);
+    }
+
+    [Fact]
     public void LiveMoneyAuthorization_RemainsDisabledAtDemoGate()
     {
         var settings = new XauScalp.App.Core.DesktopSettingsViewModel();
