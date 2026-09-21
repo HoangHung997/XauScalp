@@ -175,6 +175,8 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway, IMt
             positions);
 
         return new Mt5DemoBrokerContextSnapshot(
+            _options.CanonicalSymbol,
+            _options.BrokerSymbol,
             reconciliation,
             portfolio,
             symbolRisk);
