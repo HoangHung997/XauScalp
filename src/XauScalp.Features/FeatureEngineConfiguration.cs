@@ -146,7 +146,9 @@ public sealed class XauFeatureEngineOptions
     public XauFeatureEngineOptions(
         BrokerClockConfiguration clockConfiguration,
         MarketSessionSchedule? sessionSchedule = null,
-        TimeSpan? externalContextMaxAge = null)
+        TimeSpan? externalContextMaxAge = null,
+        int highImpactNewsFeatureWindowBeforeSec = 900,
+        int highImpactNewsFeatureWindowAfterSec = 900)
     {
         ClockConfiguration = clockConfiguration ?? throw new ArgumentNullException(nameof(clockConfiguration));
         SessionSchedule = sessionSchedule;
@@ -157,7 +159,25 @@ public sealed class XauFeatureEngineOptions
             throw new ArgumentOutOfRangeException(nameof(externalContextMaxAge), maxAge, "External context max age must be positive.");
         }
 
+        if (highImpactNewsFeatureWindowBeforeSec < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(highImpactNewsFeatureWindowBeforeSec),
+                highImpactNewsFeatureWindowBeforeSec,
+                "News feature window must be non-negative.");
+        }
+
+        if (highImpactNewsFeatureWindowAfterSec < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(highImpactNewsFeatureWindowAfterSec),
+                highImpactNewsFeatureWindowAfterSec,
+                "News feature window must be non-negative.");
+        }
+
         ExternalContextMaxAge = maxAge;
+        HighImpactNewsFeatureWindowBeforeSec = highImpactNewsFeatureWindowBeforeSec;
+        HighImpactNewsFeatureWindowAfterSec = highImpactNewsFeatureWindowAfterSec;
     }
 
     public BrokerClockConfiguration ClockConfiguration { get; }
@@ -165,4 +185,8 @@ public sealed class XauFeatureEngineOptions
     public MarketSessionSchedule? SessionSchedule { get; }
 
     public TimeSpan ExternalContextMaxAge { get; }
+
+    public int HighImpactNewsFeatureWindowBeforeSec { get; }
+
+    public int HighImpactNewsFeatureWindowAfterSec { get; }
 }
