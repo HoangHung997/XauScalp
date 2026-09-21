@@ -3,6 +3,7 @@ using XauScalp.Domain;
 using XauScalp.Execution;
 using XauScalp.Persistence;
 using XauScalp.Risk;
+using XauScalp.Replay;
 
 namespace XauScalp.DemoRunner.Tests;
 
@@ -58,6 +59,135 @@ public sealed class DemoRunnerTests
             Assert.Equal(
                 DecisionModelType.Jev,
                 settings.ShadowComparison.ShadowModel);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReplayParitySink_RequiresExactLiveStateHash()
+    {
+        string directory = TempDirectory();
+        string snapshotPath = Path.Combine(
+            directory,
+            "live-feature-snapshots.jsonl");
+        DateTimeOffset now = Utc(12, 0, 0);
+        XauMarketState state = State(
+            now,
+            directionFlipAgeMs: null);
+
+        try
+        {
+            await using (var live =
+                new LiveFeatureSnapshotJsonlStore(
+                    snapshotPath))
+            {
+                await live.AppendAsync(
+                    state,
+                    CancellationToken.None);
+            }
+
+            await using var expected =
+                new LiveFeatureSnapshotJsonlStore(
+                    snapshotPath);
+            var inner = new InMemoryReplayRecordSink();
+
+            await using var parity =
+                new ReplayLiveParitySink(
+                    inner,
+                    expected.ReadAllAsync(),
+                    CancellationToken.None);
+
+            await parity.WriteAsync(
+                new ReplayOutputRecord(
+                    0,
+                    new TickEvent(
+                        ContractVersions.MarketEventV1,
+                        now,
+                        now,
+                        state.SequenceId,
+                        "test",
+                        "XAUUSD",
+                        "XAUUSD.G",
+                        2500m,
+                        2500.2m,
+                        null,
+                        1,
+                        TickFlags.Bid | TickFlags.Ask),
+                    state,
+                    ReplayCostScenario.Ideal),
+                CancellationToken.None);
+
+            await parity.CompleteAsync(
+                CancellationToken.None);
+
+            Assert.Equal(1, parity.MatchedTickStates);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ReplayParitySink_MismatchFailsClosed()
+    {
+        string directory = TempDirectory();
+        string snapshotPath = Path.Combine(
+            directory,
+            "live-feature-snapshots.jsonl");
+        DateTimeOffset now = Utc(12, 0, 0);
+        XauMarketState liveState = State(
+            now,
+            directionFlipAgeMs: null);
+        XauMarketState replayState = State(
+            now.AddMilliseconds(1),
+            directionFlipAgeMs: null);
+
+        try
+        {
+            await using (var live =
+                new LiveFeatureSnapshotJsonlStore(
+                    snapshotPath))
+            {
+                await live.AppendAsync(
+                    liveState,
+                    CancellationToken.None);
+            }
+
+            await using var expected =
+                new LiveFeatureSnapshotJsonlStore(
+                    snapshotPath);
+            var inner = new InMemoryReplayRecordSink();
+
+            await using var parity =
+                new ReplayLiveParitySink(
+                    inner,
+                    expected.ReadAllAsync(),
+                    CancellationToken.None);
+
+            await Assert.ThrowsAsync<InvalidDataException>(
+                async () => await parity.WriteAsync(
+                    new ReplayOutputRecord(
+                        0,
+                        new TickEvent(
+                            ContractVersions.MarketEventV1,
+                            now,
+                            now,
+                            replayState.SequenceId,
+                            "test",
+                            "XAUUSD",
+                            "XAUUSD.G",
+                            2500m,
+                            2500.2m,
+                            null,
+                            1,
+                            TickFlags.Bid | TickFlags.Ask),
+                        replayState,
+                        ReplayCostScenario.Ideal),
+                    CancellationToken.None));
         }
         finally
         {
