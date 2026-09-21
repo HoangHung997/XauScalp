@@ -356,7 +356,7 @@ def _fit_logistic(
     feature_names: Sequence[str],
     normalization: Sequence[tuple[float, float]],
     *,
-    epochs: int = 500,
+    epochs: int = 160,
     learning_rate: float = 0.05,
     l2: float = 0.001,
 ) -> dict[str, Any]:
@@ -428,7 +428,7 @@ def _fit_platt(
     a = 1.0
     b = 0.0
 
-    for _ in range(300):
+    for _ in range(100):
         grad_a = 0.0
         grad_b = 0.0
         for raw, target in zip(logits, targets, strict=True):
