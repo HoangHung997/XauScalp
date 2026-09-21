@@ -54,11 +54,16 @@ public sealed class DemoRiskLedgerSynchronizer
                         == currentUtcDate)
                 .ToArray();
 
-            if (currentDayBrokerCloses.Length > 0)
+            bool ownedBrokerStateExists =
+                context.Reconciliation.Positions.Count > 0
+                || context.Reconciliation.Orders.Count > 0;
+
+            if (currentDayBrokerCloses.Length > 0
+                || ownedBrokerStateExists)
             {
                 throw new InvalidOperationException(
                     "Risk ledger is not initialized for the current UTC trading day, "
-                    + "but owned MT5 demo trades already closed today. "
+                    + "but owned MT5 demo trade state already exists. "
                     + "Start-equity cannot be reconstructed safely; no new trade is allowed.");
             }
 
