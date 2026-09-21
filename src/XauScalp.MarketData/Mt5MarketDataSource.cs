@@ -18,11 +18,22 @@ public sealed class Mt5MarketDataSource : IMarketDataSource
     public Mt5MarketDataSource(
         IMt5Transport transport,
         Mt5GatewayOptions options,
-        IUtcClock? clock = null)
+        IUtcClock? clock = null,
+        long? initialHighestSourceSequenceId = null)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _clock = clock ?? new SystemUtcClock();
+
+        if (initialHighestSourceSequenceId is < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(initialHighestSourceSequenceId),
+                initialHighestSourceSequenceId,
+                "Initial source sequence must be non-negative when supplied.");
+        }
+
+        _highestSourceSequenceId = initialHighestSourceSequenceId;
     }
 
     public async IAsyncEnumerable<MarketEvent> ReadEventsAsync(
