@@ -25,6 +25,8 @@ public sealed record TradePlannerConfiguration(
 
 public interface ITradePlanner
 {
+    string SettingsVersion { get; }
+
     TradePlan Create(
         XauMarketState state,
         XauDecision decision,
@@ -42,6 +44,8 @@ public sealed class TradePlanner : ITradePlanner
         _configuration = configuration
             ?? throw new ArgumentNullException(nameof(configuration));
     }
+
+    public string SettingsVersion => _configuration.SettingsVersion;
 
     public TradePlan Create(
         XauMarketState state,
