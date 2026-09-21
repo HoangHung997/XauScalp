@@ -25,7 +25,7 @@ public sealed class JevDecisionModelTests
         Assert.Equal(TradeAction.Long, decision.Action);
         Assert.Equal(0.71, decision.PUp5First, precision: 12);
         Assert.Equal(1, provider.CallCount);
-        Assert.Equal(1, provider.RequestIds.Distinct().Count());
+        Assert.Single(provider.RequestIds.Distinct());
         Assert.Contains(
             telemetry.Events,
             item => item.Kind == JevTelemetryKind.AttemptSucceeded);
