@@ -120,11 +120,12 @@ public sealed class DemoObservationJsonlStore :
                 evaluation.RiskDecision?.ReasonCode,
                 evaluation.ExecutionResult?.BrokerOrderId,
                 evaluation.ExecutionResult?.BrokerDealId,
-                evaluation.Reconciliation?.Issues
-                    .FirstOrDefault()?.Message,
+                BrokerPositionId: null,
                 decision?.Latency.TotalMilliseconds,
                 evaluation.ExecutionResult?.SlippagePoints,
-                evaluation.ExecutionResult?.Message),
+                Message: evaluation.ExecutionResult?.Message
+                    ?? evaluation.Reconciliation?.Issues
+                        .FirstOrDefault()?.Message),
             cancellationToken);
     }
 
