@@ -790,12 +790,14 @@ string PositionJson(const ulong ticket)
    const string broker_comment = PositionGetString(POSITION_COMMENT);
    const string trade_intent_id = TradeIntentForComment(broker_comment);
    const long position_type = PositionGetInteger(POSITION_TYPE);
+   const long opened_at_ms = PositionGetInteger(POSITION_TIME_MSC);
 
    return StringFormat(
       "{\"tradeIntentId\":%s,\"brokerPositionId\":\"%s\","
       "\"brokerSymbol\":\"%s\",\"brokerComment\":%s,"
       "\"side\":\"%s\",\"volumeLots\":%s,\"entryPrice\":%s,"
-      "\"stopLossPrice\":%s,\"takeProfitPrice\":%s,\"magicNumber\":%s}",
+      "\"stopLossPrice\":%s,\"takeProfitPrice\":%s,\"magicNumber\":%s,"
+      "\"currentPrice\":%s,\"unrealizedPnlMoney\":%s,\"openedAtUnixMs\":%s}",
       JsonStringOrNull(trade_intent_id),
       IntegerToString((long)ticket),
       JsonEscape(PositionGetString(POSITION_SYMBOL)),
@@ -811,7 +813,10 @@ string PositionJson(const ulong ticket)
          PositionGetDouble(POSITION_TP),
          PositionGetDouble(POSITION_TP) > 0.0,
          10),
-      IntegerToString((long)PositionGetInteger(POSITION_MAGIC)));
+      IntegerToString((long)PositionGetInteger(POSITION_MAGIC)),
+      DoubleToString(PositionGetDouble(POSITION_PRICE_CURRENT), 10),
+      DoubleToString(PositionGetDouble(POSITION_PROFIT), 8),
+      IntegerToString(opened_at_ms));
 }
 
 string OrderJson(const ulong ticket)
@@ -924,6 +929,65 @@ void ExecuteQueryState(const string line)
    }
    closed += "]";
 
+   const double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   const double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   const double free_margin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+
+   const double point = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
+   const double tick_size = SymbolInfoDouble(
+      _Symbol,
+      SYMBOL_TRADE_TICK_SIZE);
+   const double tick_value = SymbolInfoDouble(
+      _Symbol,
+      SYMBOL_TRADE_TICK_VALUE);
+   const double min_volume = SymbolInfoDouble(
+      _Symbol,
+      SYMBOL_VOLUME_MIN);
+   const double max_volume = SymbolInfoDouble(
+      _Symbol,
+      SYMBOL_VOLUME_MAX);
+   const double volume_step = SymbolInfoDouble(
+      _Symbol,
+      SYMBOL_VOLUME_STEP);
+   const long stop_level_points = SymbolInfoInteger(
+      _Symbol,
+      SYMBOL_TRADE_STOPS_LEVEL);
+   const double min_stop_distance = stop_level_points * point;
+
+   double estimated_margin_per_lot = 0.0;
+   const double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+   if(ask > 0.0)
+   {
+      if(!OrderCalcMargin(
+            ORDER_TYPE_BUY,
+            _Symbol,
+            1.0,
+            ask,
+            estimated_margin_per_lot))
+      {
+         estimated_margin_per_lot = 0.0;
+      }
+   }
+
+   const string account = StringFormat(
+      "{\"balance\":%s,\"equity\":%s,\"freeMargin\":%s}",
+      DoubleToString(balance, 8),
+      DoubleToString(equity, 8),
+      DoubleToString(free_margin, 8));
+
+   const string symbol_risk = StringFormat(
+      "{\"point\":%s,\"tickSize\":%s,\"tickValue\":%s,"
+      "\"minVolume\":%s,\"maxVolume\":%s,\"volumeStep\":%s,"
+      "\"minStopDistance\":%s,\"estimatedMarginPerLotMoney\":%s}",
+      DoubleToString(point, 10),
+      DoubleToString(tick_size, 10),
+      DoubleToString(tick_value, 10),
+      DoubleToString(min_volume, 8),
+      DoubleToString(max_volume, 8),
+      DoubleToString(volume_step, 8),
+      DoubleToString(min_stop_distance, 10),
+      DoubleToString(estimated_margin_per_lot, 8));
+
    const double latency_ms =
       ((double)(GetMicrosecondCount() - started)) / 1000.0;
 
@@ -935,14 +999,16 @@ void ExecuteQueryState(const string line)
       "\"requestedVolumeLots\":0.0,\"filledVolumeLots\":0.0,"
       "\"latencyMs\":%s,\"safeToRetry\":false,"
       "\"positions\":%s,\"orders\":%s,"
-      "\"closedTradeIntentIds\":%s}",
+      "\"closedTradeIntentIds\":%s,\"account\":%s,\"symbolRisk\":%s}",
       PROTOCOL_VERSION,
       JsonEscape(command_id),
       JsonEscape(g_session_id),
       DoubleToString(latency_ms, 3),
       positions,
       orders,
-      closed);
+      closed,
+      account,
+      symbol_risk);
 
    if(WriteEvent(json))
       AddUnique(g_final_command_ids, command_id);
