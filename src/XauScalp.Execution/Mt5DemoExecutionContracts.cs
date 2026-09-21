@@ -157,7 +157,8 @@ public sealed record Mt5DemoExecutionReply(
     Mt5DemoOrderWire[]? Orders,
     Guid[]? ClosedTradeIntentIds,
     Mt5DemoAccountWire? Account = null,
-    Mt5DemoSymbolRiskWire? SymbolRisk = null);
+    Mt5DemoSymbolRiskWire? SymbolRisk = null,
+    Mt5DemoClosedTradeWire[]? ClosedTrades = null);
 
 public sealed record Mt5DemoPositionWire(
     Guid? TradeIntentId,
@@ -186,6 +187,12 @@ public sealed record Mt5DemoAccountWire(
     decimal Equity,
     decimal FreeMargin);
 
+public sealed record Mt5DemoClosedTradeWire(
+    Guid TradeIntentId,
+    decimal RealizedPnlMoney,
+    decimal CommissionCostMoney,
+    long ClosedAtUnixMs);
+
 public sealed record Mt5DemoSymbolRiskWire(
     decimal Point,
     decimal TickSize,
@@ -201,7 +208,8 @@ public sealed record Mt5DemoBrokerContextSnapshot(
     string BrokerSymbol,
     BrokerReconciliationSnapshot Reconciliation,
     PortfolioState Portfolio,
-    Mt5DemoSymbolRiskWire SymbolRisk);
+    Mt5DemoSymbolRiskWire SymbolRisk,
+    IReadOnlyList<Mt5DemoClosedTradeWire> ClosedTrades);
 
 public interface IMt5DemoBrokerContextProvider
 {
