@@ -121,7 +121,7 @@ public sealed class DemoObservationJsonlStore :
                 evaluation.ExecutionResult?.BrokerOrderId,
                 evaluation.ExecutionResult?.BrokerDealId,
                 BrokerPositionId: null,
-                decision?.Latency.TotalMilliseconds,
+                decision?.EvaluationLatency.TotalMilliseconds,
                 evaluation.ExecutionResult?.SlippagePoints,
                 Message: evaluation.ExecutionResult?.Message
                     ?? evaluation.Reconciliation?.Issues
