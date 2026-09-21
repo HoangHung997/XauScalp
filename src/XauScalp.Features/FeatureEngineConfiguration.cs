@@ -148,7 +148,8 @@ public sealed class XauFeatureEngineOptions
         MarketSessionSchedule? sessionSchedule = null,
         TimeSpan? externalContextMaxAge = null,
         int highImpactNewsFeatureWindowBeforeSec = 900,
-        int highImpactNewsFeatureWindowAfterSec = 900)
+        int highImpactNewsFeatureWindowAfterSec = 900,
+        TimeSpan? maxBrokerTickAge = null)
     {
         ClockConfiguration = clockConfiguration ?? throw new ArgumentNullException(nameof(clockConfiguration));
         SessionSchedule = sessionSchedule;
@@ -175,9 +176,20 @@ public sealed class XauFeatureEngineOptions
                 "News feature window must be non-negative.");
         }
 
+        TimeSpan brokerTickAge = maxBrokerTickAge
+            ?? TimeSpan.FromSeconds(5);
+        if (brokerTickAge <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maxBrokerTickAge),
+                brokerTickAge,
+                "Maximum broker tick age must be positive.");
+        }
+
         ExternalContextMaxAge = maxAge;
         HighImpactNewsFeatureWindowBeforeSec = highImpactNewsFeatureWindowBeforeSec;
         HighImpactNewsFeatureWindowAfterSec = highImpactNewsFeatureWindowAfterSec;
+        MaxBrokerTickAge = brokerTickAge;
     }
 
     public BrokerClockConfiguration ClockConfiguration { get; }
@@ -189,4 +201,6 @@ public sealed class XauFeatureEngineOptions
     public int HighImpactNewsFeatureWindowBeforeSec { get; }
 
     public int HighImpactNewsFeatureWindowAfterSec { get; }
+
+    public TimeSpan MaxBrokerTickAge { get; }
 }
