@@ -39,6 +39,10 @@ internal static class Program
             && !string.Equals(
                 command,
                 "replay",
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(
+                command,
+                "drill",
                 StringComparison.OrdinalIgnoreCase))
         {
             PrintUsage();
@@ -77,6 +81,24 @@ internal static class Program
                 return 0;
             }
 
+            if (string.Equals(
+                    command,
+                    "drill",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                DemoDrillEvidence evidence =
+                    await DemoDrillRunner.RunAsync(
+                        configuration,
+                        cancellation.Token)
+                    .ConfigureAwait(false);
+
+                Console.WriteLine(
+                    $"Drills PASS outage={evidence.ModelOutagePassed} "
+                    + $"stale={evidence.StaleDataPassed} "
+                    + $"restart={evidence.RestartReconnectPassed}.");
+                return 0;
+            }
+
             await RunAsync(
                 configuration,
                 cancellation.Token).ConfigureAwait(false);
@@ -101,7 +123,7 @@ internal static class Program
     private static void PrintUsage()
     {
         Console.Error.WriteLine(
-            "Usage: XauScalp.DemoRunner <run|replay> <config.json>");
+            "Usage: XauScalp.DemoRunner <run|replay|drill> <config.json>");
     }
 
     private static async Task RunAsync(
