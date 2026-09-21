@@ -286,7 +286,7 @@ public sealed class DemoReadinessCiRehearsalTests
             RiskDecisionOutcome.Rejected,
             result.Outcome);
         Assert.Equal(
-            "market-state-stale",
+            "state-stale",
             result.ReasonCode);
     }
 
