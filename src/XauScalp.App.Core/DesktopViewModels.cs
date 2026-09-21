@@ -99,6 +99,9 @@ public sealed class DesktopSettingsViewModel
 
     public bool LiveTradingAuthorized => false;
 
+    public string OperatingModeStatus =>
+        "Research / Demo only";
+
     public string LiveTradingStatus =>
         "LIVE MONEY DISABLED — requires separate explicit Product Owner authorization.";
 
