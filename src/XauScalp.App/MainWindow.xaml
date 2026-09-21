@@ -12,9 +12,11 @@
         <TextBlock Text="XauScalp — Operational Console"
                    FontSize="22"
                    FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Settings.OperatingModeStatus}"
+                   Margin="0,6,0,0" />
         <TextBlock Text="{Binding Settings.LiveTradingStatus}"
                    FontWeight="Bold"
-                   Margin="0,6,0,0" />
+                   Margin="0,2,0,0" />
       </StackPanel>
     </Border>
 
