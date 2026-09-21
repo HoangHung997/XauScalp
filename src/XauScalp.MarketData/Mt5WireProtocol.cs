@@ -41,6 +41,16 @@ public sealed record Mt5WireConnection(
     string? Reason)
     : Mt5WireMessage(SourceSequenceId, BrokerSymbol);
 
+public sealed record Mt5WireNewsContext(
+    long SourceSequenceId,
+    string BrokerSymbol,
+    bool IsAvailable,
+    double? NewsDistanceBeforeSec,
+    double? NewsDistanceAfterSec,
+    string Source,
+    int? SourceErrorCode)
+    : Mt5WireMessage(SourceSequenceId, BrokerSymbol);
+
 public interface IMt5Transport
 {
     IAsyncEnumerable<Mt5WireMessage> ReadAsync(CancellationToken cancellationToken = default);
