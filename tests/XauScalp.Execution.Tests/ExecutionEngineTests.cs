@@ -41,8 +41,9 @@ public sealed class ExecutionEngineTests
         Assert.NotNull(snapshot);
 
         Assert.Equal(OrderLifecycleState.Open, snapshot!.EffectiveState);
+        Assert.Equal("position-1", snapshot.BrokerPositionId);
         Assert.Contains(
-            snapshot!.History,
+            snapshot.History,
             item => item.EffectiveState == OrderLifecycleState.Filled);
     }
 
@@ -200,13 +201,19 @@ public sealed class ExecutionEngineTests
 
         var journal = new InMemoryExecutionJournal();
         ExecutionEngine engine = Engine(broker, journal);
-        ExecutionResult open = await engine.SubmitAsync(
+        _ = await engine.SubmitAsync(
             plan,
             CancellationToken.None);
 
+        ExecutionLifecycleSnapshot? openSnapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(openSnapshot);
+        Assert.Equal("position-1", openSnapshot!.BrokerPositionId);
+
         PositionCommand command = Command(
             plan,
-            brokerPositionId: open.Message ?? "position-1");
+            brokerPositionId: openSnapshot.BrokerPositionId!);
 
         ExecutionResult modify = await engine.ModifyAsync(
             command,
@@ -235,12 +242,18 @@ public sealed class ExecutionEngineTests
 
         var journal = new InMemoryExecutionJournal();
         ExecutionEngine engine = Engine(broker, journal);
-        ExecutionResult open = await engine.SubmitAsync(
+        _ = await engine.SubmitAsync(
             plan,
             CancellationToken.None);
 
+        ExecutionLifecycleSnapshot? openSnapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(openSnapshot);
+        Assert.Equal("position-1", openSnapshot!.BrokerPositionId);
+
         ExecutionResult close = await engine.CloseAsync(
-            Command(plan, open.Message ?? "position-1"),
+            Command(plan, openSnapshot.BrokerPositionId!),
             CancellationToken.None);
 
         Assert.Equal(OrderLifecycleState.Failed, close.State);
