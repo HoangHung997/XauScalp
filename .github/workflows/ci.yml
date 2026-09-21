@@ -35,6 +35,9 @@ jobs:
       - name: Test offline XAU Native training pipeline
         run: python -m unittest discover -s research/training/tests -p "test_*.py"
 
+      - name: Test feature evaluation and ablation pipeline
+        run: python -m unittest discover -s research/feature-evaluation/tests -p "test_*.py"
+
 
       - name: Restore
         run: dotnet restore XauScalp.sln
