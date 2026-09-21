@@ -546,22 +546,19 @@ public sealed class ExecutionEngineTests
             TradePlan,
             PositionOwnership,
             CancellationToken,
-            Task<BrokerExecutionResponse>>?
-        SubmitHandler
+            Task<BrokerExecutionResponse>>? SubmitHandler
         { get; init; }
 
         public Func<
             PositionCommand,
             CancellationToken,
-            Task<BrokerExecutionResponse>>?
-        ModifyHandler
+            Task<BrokerExecutionResponse>>? ModifyHandler
         { get; init; }
 
         public Func<
             PositionCommand,
             CancellationToken,
-            Task<BrokerExecutionResponse>>?
-        CloseHandler
+            Task<BrokerExecutionResponse>>? CloseHandler
         { get; init; }
 
         public Queue<BrokerExecutionResponse> SubmitResponses { get; } = new();
