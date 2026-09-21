@@ -100,6 +100,7 @@ public static class DemoDrillRunner
         (bool restartPassed, string restartDetail) =
             await RunRestartReconnectDrillAsync(
                 configuration,
+                gateway,
                 execution,
                 executionJournal,
                 cancellationToken).ConfigureAwait(false);
@@ -255,6 +256,7 @@ public static class DemoDrillRunner
     private static async Task<(bool Passed, string Detail)>
         RunRestartReconnectDrillAsync(
             DemoRunnerConfiguration configuration,
+            IMt5DemoBrokerContextProvider gateway,
             ExecutionEngine execution,
             IExecutionJournal journal,
             CancellationToken cancellationToken)
@@ -280,6 +282,25 @@ public static class DemoDrillRunner
             return (
                 false,
                 "Restart/reconnect drill requires at least one locally active/uncertain demo trade.");
+        }
+
+        Mt5DemoBrokerContextSnapshot beforeReconcile =
+            await gateway.QueryDemoContextAsync(
+                cancellationToken).ConfigureAwait(false);
+
+        bool brokerStatePresent =
+            beforeReconcile.Reconciliation.Positions.Any(
+                item => item.TradeIntentId
+                    == active.Plan.TradeIntentId)
+            || beforeReconcile.Reconciliation.Orders.Any(
+                item => item.TradeIntentId
+                    == active.Plan.TradeIntentId);
+
+        if (!brokerStatePresent)
+        {
+            return (
+                false,
+                $"Broker has no active position/order for local trade {active.Plan.TradeIntentId:D}; restart-with-open-state drill is not proven.");
         }
 
         string commandPath = Path.Combine(
