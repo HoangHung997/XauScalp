@@ -21,5 +21,6 @@
     <ProjectReference Include="../../src/XauScalp.Persistence/XauScalp.Persistence.csproj" />
     <ProjectReference Include="../../src/XauScalp.Replay/XauScalp.Replay.csproj" />
     <ProjectReference Include="../../src/XauScalp.App.Core/XauScalp.App.Core.csproj" />
+    <ProjectReference Include="../../src/XauScalp.Runtime/XauScalp.Runtime.csproj" />
   </ItemGroup>
 </Project>
