@@ -111,3 +111,57 @@ Full XSP-005 tick-history readiness requires 15 seconds because the burst baseli
 `XauMarketState.MarketStateId` is deterministically derived from schema/source/symbol/sequence/time rather than a random GUID. Given the same event prefix and configuration, live and replay produce the same feature values and state identity.
 
 The engine never receives labels or future outcomes.
+
+
+## XSP-006 causal liquidity and reaction evidence
+
+XSP-006 extends the same feature engine with estimated-liquidity evidence. `XauMarketState.LiquiditySource` is therefore `Estimated`; no CFD price-derived field is labeled `RealDom`.
+
+### Causal swing availability
+
+A closed M1 bar becomes a swing candidate only after two later closed M1 bars exist. A swing high must exceed the highs of the two closed bars on each side; a swing low must be below the lows of the two bars on each side. The feature timestamp is never backdated to pretend the swing was known before confirmation.
+
+Equal-high/equal-low strength clusters confirmed swings within `0.10 * AtrM1`:
+
+- one level: strength 0;
+- two clustered levels: 0.5;
+- three or more: capped at 1.
+
+### Sweep and close-back
+
+Sweep detection uses ordered midpoint ticks against already-known estimated liquidity levels:
+
+- upper/buy-side sweep: previous mid <= level and current mid > level;
+- lower/sell-side sweep: previous mid >= level and current mid < level;
+- sweep depth is maximum outward penetration / causal M1 ATR;
+- close-back is distance returned inside the swept level / ATR.
+
+A breakout that has not returned inside retains `CloseBackInsideAtr = 0`; it is not relabeled as rejection.
+
+### Previous day/week levels
+
+PDH/PDL and PWH/PWL are built from the observed midpoint stream and become available only after the UTC day/week actually rolls over. Current-day/current-week final extrema are never exposed as previous-period values early.
+
+### Estimated magnets, pull and vacuum
+
+Upper/lower candidate liquidity combines confirmed swings with prior-day/prior-week extrema. Magnet distance is normalized by ATR. Magnet score is inverse distance, adjusted only by numeric equal-level strength. Pull is a distance-weighted magnet score; `PullDelta = PullUp - PullDown`.
+
+`InsideVacuum = 1` is a research candidate when both nearest upper and lower estimated liquidity distances are at least 0.75 ATR. It is not an entry rule.
+
+### Reaction sequence
+
+For the most recent causal touch/sweep (retained for 60 seconds), the engine records:
+
+- touch age;
+- sweep side/depth;
+- wick/body ratio at touch;
+- close-back depth;
+- tick-volume ratio;
+- velocity into the level and peak velocity at the level;
+- deceleration after touch;
+- post-touch direction-flip flag/delay;
+- ordered micro-retest state and resume velocity.
+
+Micro-retest is only marked after the ordered path performs: sweep/close-back -> move at least 0.10 ATR away -> retest to within 0.05 ATR of the level -> resume at least 0.10 ATR away.
+
+Absorption scores are explicitly **estimated candidate scores**, combining deceleration, close-back and tick-volume evidence. They are not DOM and do not imply BUY/SELL.
