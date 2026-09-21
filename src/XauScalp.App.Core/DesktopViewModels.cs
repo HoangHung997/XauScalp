@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using XauScalp.Domain;
 
 namespace XauScalp.App.Core;
@@ -164,27 +166,80 @@ public sealed class DesktopSettingsViewModel
     }
 }
 
-public sealed class OperationalStatusViewModel
+public sealed class OperationalStatusViewModel : INotifyPropertyChanged
 {
-    public string FeedHealth { get; private set; } = "Unknown";
+    private string _feedHealth = "Unknown";
+    private string _featureReadiness = "Not ready";
+    private string _selectedModel = "JEV";
+    private string _modelVersion = "Unknown";
+    private string _modelLatency = "n/a";
+    private string _modelError = "None";
+    private string _riskLockState = "Locked / not evaluated";
+    private string _brokerConnection = "Disconnected";
+    private string _currentPosition = "None";
+    private string _dataStaleness = "Unknown";
 
-    public string FeatureReadiness { get; private set; } = "Not ready";
+    public event PropertyChangedEventHandler? PropertyChanged;
 
-    public string SelectedModel { get; private set; } = "JEV";
+    public string FeedHealth
+    {
+        get => _feedHealth;
+        private set => SetField(ref _feedHealth, value);
+    }
 
-    public string ModelVersion { get; private set; } = "Unknown";
+    public string FeatureReadiness
+    {
+        get => _featureReadiness;
+        private set => SetField(ref _featureReadiness, value);
+    }
 
-    public string ModelLatency { get; private set; } = "n/a";
+    public string SelectedModel
+    {
+        get => _selectedModel;
+        private set => SetField(ref _selectedModel, value);
+    }
 
-    public string ModelError { get; private set; } = "None";
+    public string ModelVersion
+    {
+        get => _modelVersion;
+        private set => SetField(ref _modelVersion, value);
+    }
 
-    public string RiskLockState { get; private set; } = "Locked / not evaluated";
+    public string ModelLatency
+    {
+        get => _modelLatency;
+        private set => SetField(ref _modelLatency, value);
+    }
 
-    public string BrokerConnection { get; private set; } = "Disconnected";
+    public string ModelError
+    {
+        get => _modelError;
+        private set => SetField(ref _modelError, value);
+    }
 
-    public string CurrentPosition { get; private set; } = "None";
+    public string RiskLockState
+    {
+        get => _riskLockState;
+        private set => SetField(ref _riskLockState, value);
+    }
 
-    public string DataStaleness { get; private set; } = "Unknown";
+    public string BrokerConnection
+    {
+        get => _brokerConnection;
+        private set => SetField(ref _brokerConnection, value);
+    }
+
+    public string CurrentPosition
+    {
+        get => _currentPosition;
+        private set => SetField(ref _currentPosition, value);
+    }
+
+    public string DataStaleness
+    {
+        get => _dataStaleness;
+        private set => SetField(ref _dataStaleness, value);
+    }
 
     public void Apply(OperationalStatusSnapshot snapshot)
     {
@@ -200,6 +255,22 @@ public sealed class OperationalStatusViewModel
         BrokerConnection = Required(snapshot.BrokerConnection, nameof(snapshot.BrokerConnection));
         CurrentPosition = Required(snapshot.CurrentPosition, nameof(snapshot.CurrentPosition));
         DataStaleness = Required(snapshot.DataStaleness, nameof(snapshot.DataStaleness));
+    }
+
+    private void SetField(
+        ref string field,
+        string value,
+        [CallerMemberName] string? propertyName = null)
+    {
+        if (string.Equals(field, value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        field = value;
+        PropertyChanged?.Invoke(
+            this,
+            new PropertyChangedEventArgs(propertyName));
     }
 
     private static string Required(string? value, string field)
