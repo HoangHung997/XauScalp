@@ -139,6 +139,77 @@ public sealed class Mt5GatewayAndRecorderTests
     }
 
     [Fact]
+    public async Task NewsFrame_IsParsedConvertedAndPersistsAvailability()
+    {
+        const string json =
+            "{\"type\":\"news\",\"sequence\":9,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":true,\"newsDistanceBeforeSec\":120,"
+            + "\"newsDistanceAfterSec\":3600,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":null}";
+
+        Mt5WireNewsContext wire = Assert.IsType<Mt5WireNewsContext>(
+            Mt5NdjsonParser.Parse(json));
+
+        Assert.True(wire.IsAvailable);
+        Assert.Equal(120, wire.NewsDistanceBeforeSec);
+        Assert.Equal(3600, wire.NewsDistanceAfterSec);
+
+        List<MarketEvent> events = await ReadGatewayAsync([wire]);
+        NewsContextEvent news = Assert.IsType<NewsContextEvent>(
+            Assert.Single(events));
+
+        Assert.True(news.IsAvailable);
+        Assert.Equal(120, news.NewsDistanceBeforeSec);
+        Assert.Equal(3600, news.NewsDistanceAfterSec);
+        Assert.Null(news.SourceErrorCode);
+
+        JsonSerializerOptions options = XauJson.CreateOptions();
+        string persisted = JsonSerializer.Serialize<MarketEvent>(
+            news,
+            options);
+        MarketEvent restored = JsonSerializer.Deserialize<MarketEvent>(
+            persisted,
+            options)
+            ?? throw new InvalidOperationException(
+                "News event deserialized to null.");
+
+        NewsContextEvent restoredNews = Assert.IsType<NewsContextEvent>(
+            restored);
+        Assert.Equal(news, restoredNews);
+    }
+
+    [Fact]
+    public void UnavailableNewsFrame_RejectsSyntheticDistances()
+    {
+        const string validUnavailable =
+            "{\"type\":\"news\",\"sequence\":10,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":false,\"newsDistanceBeforeSec\":null,"
+            + "\"newsDistanceAfterSec\":null,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":5401}";
+
+        Mt5WireNewsContext unavailable =
+            Assert.IsType<Mt5WireNewsContext>(
+                Mt5NdjsonParser.Parse(validUnavailable));
+
+        Assert.False(unavailable.IsAvailable);
+        Assert.Null(unavailable.NewsDistanceBeforeSec);
+        Assert.Null(unavailable.NewsDistanceAfterSec);
+        Assert.Equal(5401, unavailable.SourceErrorCode);
+
+        const string invalidUnavailable =
+            "{\"type\":\"news\",\"sequence\":11,\"brokerSymbol\":\"XAUUSD.G\","
+            + "\"available\":false,\"newsDistanceBeforeSec\":0,"
+            + "\"newsDistanceAfterSec\":null,"
+            + "\"source\":\"mt5-economic-calendar:USD:high\","
+            + "\"sourceErrorCode\":5401}";
+
+        Assert.Throws<InvalidDataException>(
+            () => Mt5NdjsonParser.Parse(invalidUnavailable));
+    }
+
+    [Fact]
     public async Task RecorderRestart_AppendsWithoutRewritingHistory()
     {
         string directory = CreateTempDirectory();
