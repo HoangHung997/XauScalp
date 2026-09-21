@@ -35,14 +35,14 @@ public sealed class ExecutionEngineTests
         Assert.Equal(TimeSpan.FromMilliseconds(42), result.Latency);
         Assert.Equal(1, broker.SubmitCalls);
 
-        ExecutionLifecycleSnapshot snapshot = Assert.NotNull(
-            await journal.GetAsync(
-                plan.TradeIntentId,
-                CancellationToken.None));
+        ExecutionLifecycleSnapshot? snapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(snapshot);
 
-        Assert.Equal(OrderLifecycleState.Open, snapshot.EffectiveState);
+        Assert.Equal(OrderLifecycleState.Open, snapshot!.EffectiveState);
         Assert.Contains(
-            snapshot.History,
+            snapshot!.History,
             item => item.EffectiveState == OrderLifecycleState.Filled);
     }
 
@@ -53,17 +53,18 @@ public sealed class ExecutionEngineTests
         var broker = new FakeBroker();
         broker.SubmitResponses.Enqueue(
             new BrokerExecutionResponse(
-                BrokerExecutionOutcome.Requote,
-                null,
-                null,
-                plan.PlannedEntryPrice,
-                null,
-                plan.VolumeLots,
-                0,
-                null,
-                TimeSpan.FromMilliseconds(5),
-                "REQUOTE",
-                "price changed",
+                Outcome: BrokerExecutionOutcome.Requote,
+                BrokerOrderId: null,
+                BrokerDealId: null,
+                BrokerPositionId: null,
+                RequestedPrice: plan.PlannedEntryPrice,
+                FillPrice: null,
+                RequestedVolumeLots: plan.VolumeLots,
+                FilledVolumeLots: 0,
+                SlippagePoints: null,
+                Latency: TimeSpan.FromMilliseconds(5),
+                BrokerRetcode: "REQUOTE",
+                Message: "price changed",
                 SafeToRetry: true));
         broker.SubmitResponses.Enqueue(Filled(plan));
 
@@ -155,17 +156,18 @@ public sealed class ExecutionEngineTests
         {
             SubmitHandler = (_, _, _) => Task.FromResult(
                 new BrokerExecutionResponse(
-                    BrokerExecutionOutcome.PartiallyFilled,
-                    "order-1",
-                    "deal-1",
-                    plan.PlannedEntryPrice,
-                    100.2m,
-                    plan.VolumeLots,
-                    plan.VolumeLots / 2m,
-                    2,
-                    TimeSpan.FromMilliseconds(20),
-                    "PARTIAL",
-                    null,
+                    Outcome: BrokerExecutionOutcome.PartiallyFilled,
+                    BrokerOrderId: "order-1",
+                    BrokerDealId: "deal-1",
+                    BrokerPositionId: "position-1",
+                    RequestedPrice: plan.PlannedEntryPrice,
+                    FillPrice: 100.2m,
+                    RequestedVolumeLots: plan.VolumeLots,
+                    FilledVolumeLots: plan.VolumeLots / 2m,
+                    SlippagePoints: 2,
+                    Latency: TimeSpan.FromMilliseconds(20),
+                    BrokerRetcode: "PARTIAL",
+                    Message: null,
                     SafeToRetry: false)),
         };
 
@@ -176,13 +178,13 @@ public sealed class ExecutionEngineTests
 
         Assert.Equal(OrderLifecycleState.PartiallyFilled, result.State);
 
-        ExecutionLifecycleSnapshot snapshot = Assert.NotNull(
-            await journal.GetAsync(
-                plan.TradeIntentId,
-                CancellationToken.None));
+        ExecutionLifecycleSnapshot? snapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(snapshot);
         Assert.Equal(
             OrderLifecycleState.PartiallyFilled,
-            snapshot.EffectiveState);
+            snapshot!.EffectiveState);
     }
 
     [Fact]
@@ -212,12 +214,12 @@ public sealed class ExecutionEngineTests
 
         Assert.Equal(OrderLifecycleState.Failed, modify.State);
 
-        ExecutionLifecycleSnapshot snapshot = Assert.NotNull(
-            await journal.GetAsync(
-                plan.TradeIntentId,
-                CancellationToken.None));
+        ExecutionLifecycleSnapshot? snapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(snapshot);
 
-        Assert.Equal(OrderLifecycleState.Open, snapshot.EffectiveState);
+        Assert.Equal(OrderLifecycleState.Open, snapshot!.EffectiveState);
     }
 
     [Fact]
@@ -243,11 +245,11 @@ public sealed class ExecutionEngineTests
 
         Assert.Equal(OrderLifecycleState.Failed, close.State);
 
-        ExecutionLifecycleSnapshot snapshot = Assert.NotNull(
-            await journal.GetAsync(
-                plan.TradeIntentId,
-                CancellationToken.None));
-        Assert.Equal(OrderLifecycleState.Open, snapshot.EffectiveState);
+        ExecutionLifecycleSnapshot? snapshot = await journal.GetAsync(
+            plan.TradeIntentId,
+            CancellationToken.None);
+        Assert.NotNull(snapshot);
+        Assert.Equal(OrderLifecycleState.Open, snapshot!.EffectiveState);
     }
 
     [Fact]
@@ -449,17 +451,18 @@ public sealed class ExecutionEngineTests
         TimeSpan? latency = null)
     {
         return new BrokerExecutionResponse(
-            BrokerExecutionOutcome.Filled,
-            "order-1",
-            "deal-1",
-            plan.PlannedEntryPrice,
-            fillPrice,
-            plan.VolumeLots,
-            plan.VolumeLots,
-            slippagePoints,
-            latency ?? TimeSpan.FromMilliseconds(10),
-            "DONE",
-            "position-1",
+            Outcome: BrokerExecutionOutcome.Filled,
+            BrokerOrderId: "order-1",
+            BrokerDealId: "deal-1",
+            BrokerPositionId: "position-1",
+            RequestedPrice: plan.PlannedEntryPrice,
+            FillPrice: fillPrice,
+            RequestedVolumeLots: plan.VolumeLots,
+            FilledVolumeLots: plan.VolumeLots,
+            SlippagePoints: slippagePoints,
+            Latency: latency ?? TimeSpan.FromMilliseconds(10),
+            BrokerRetcode: "DONE",
+            Message: null,
             SafeToRetry: false);
     }
 
@@ -468,17 +471,18 @@ public sealed class ExecutionEngineTests
         string retcode)
     {
         return new BrokerExecutionResponse(
-            BrokerExecutionOutcome.Rejected,
-            null,
-            null,
-            plan.PlannedEntryPrice,
-            null,
-            plan.VolumeLots,
-            0,
-            null,
-            TimeSpan.FromMilliseconds(5),
-            retcode,
-            "rejected",
+            Outcome: BrokerExecutionOutcome.Rejected,
+            BrokerOrderId: null,
+            BrokerDealId: null,
+            BrokerPositionId: null,
+            RequestedPrice: plan.PlannedEntryPrice,
+            FillPrice: null,
+            RequestedVolumeLots: plan.VolumeLots,
+            FilledVolumeLots: 0,
+            SlippagePoints: null,
+            Latency: TimeSpan.FromMilliseconds(5),
+            BrokerRetcode: retcode,
+            Message: "rejected",
             SafeToRetry: false);
     }
 
