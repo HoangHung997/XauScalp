@@ -23,14 +23,25 @@ internal static class Program
 
     public static async Task<int> Main(string[] args)
     {
-        if (args.Length != 2
-            || !string.Equals(
-                args[0],
+        if (args.Length != 2)
+        {
+            PrintUsage();
+            return 64;
+        }
+
+        string command = args[0];
+        string configurationPath = args[1];
+
+        if (!string.Equals(
+                command,
                 "run",
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(
+                command,
+                "replay",
                 StringComparison.OrdinalIgnoreCase))
         {
-            Console.Error.WriteLine(
-                "Usage: XauScalp.DemoRunner run <config.json>");
+            PrintUsage();
             return 64;
         }
 
@@ -44,7 +55,27 @@ internal static class Program
         try
         {
             DemoRunnerConfiguration configuration =
-                DemoRunnerConfiguration.Load(args[1]);
+                DemoRunnerConfiguration.Load(
+                    configurationPath);
+
+            if (string.Equals(
+                    command,
+                    "replay",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                DemoReplayEvidence evidence =
+                    await DemoReplayVerifier.RunAsync(
+                        configuration,
+                        configurationPath,
+                        cancellation.Token)
+                    .ConfigureAwait(false);
+
+                Console.WriteLine(
+                    $"Replay PASS dataset={evidence.DatasetId} "
+                    + $"output={evidence.ReplayOutputSha256} "
+                    + $"ticks={evidence.TickCount}.");
+                return 0;
+            }
 
             await RunAsync(
                 configuration,
@@ -65,6 +96,12 @@ internal static class Program
                 $"XauScalp demo runner FAIL-CLOSED: {exception.GetType().Name}: {exception.Message}");
             return 2;
         }
+    }
+
+    private static void PrintUsage()
+    {
+        Console.Error.WriteLine(
+            "Usage: XauScalp.DemoRunner <run|replay> <config.json>");
     }
 
     private static async Task RunAsync(
