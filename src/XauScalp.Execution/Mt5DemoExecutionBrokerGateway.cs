@@ -165,6 +165,15 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
                 $"MT5 demo bridge returned '{reply.Type}' for a state query.");
         }
 
+        if (!string.Equals(
+                reply.Operation,
+                Mt5DemoExecutionProtocol.QueryStateOperation,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "MT5 demo bridge state response operation does not match queryState.");
+        }
+
         BrokerPositionSnapshot[] positions = (reply.Positions ?? Array.Empty<Mt5DemoPositionWire>())
             .Select(MapPosition)
             .ToArray();
@@ -277,8 +286,8 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
         }
 
         bool safeToRetry = reply.SafeToRetry
-            && outcome is BrokerExecutionOutcome.Rejected
-                or BrokerExecutionOutcome.Requote
+            && (outcome is BrokerExecutionOutcome.Rejected
+                or BrokerExecutionOutcome.Requote)
             && string.IsNullOrWhiteSpace(reply.BrokerOrderId)
             && string.IsNullOrWhiteSpace(reply.BrokerDealId)
             && string.IsNullOrWhiteSpace(reply.BrokerPositionId);
