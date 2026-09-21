@@ -1,51 +1,48 @@
-# XAU Native decision-model runtime
+# Decision Models
 
-This project owns provider-independent decision-model adapters and the local XAU Native inference runtime.
+This project contains the only two product decision-model backends:
+
+- JEV
+- XAU Native AI
+
+Both implement `IXauDecisionModel`, consume immutable `XauMarketState`, and return `XauDecision`. No class in this project can place broker orders or choose account risk.
 
 ## XAU Native V0
 
-XSP-013 starts with a calibrated linear/logistic multi-head baseline rather than a complex neural network. The artifact is language-neutral JSON and production inference is pure .NET 8.
+The native V0 runtime and offline training pipeline are documented in `research/training/README.md`.
 
-The runtime:
+## JEV adapter
 
-- consumes only the immutable `XauMarketState`;
-- requires the exact artifact `FeatureSchemaVersion`;
-- fails closed on stale/not-ready or missing required P0 features;
-- validates artifact identity and SHA-256 against its manifest;
-- returns the shared `XauDecision` contract;
-- never accesses MT5, chooses lot size, changes risk limits, or submits an order.
+`JevDecisionModel` is provider-independent. A provider integration implements `IJevProviderClient`; domain and risk/execution layers never depend on a provider SDK.
 
-Learned V0 heads are:
+The adapter:
 
-- +5 first;
-- -5 first;
-- +10 first;
-- -10 first;
-- Long adverse-first;
-- Short adverse-first.
+- maps the complete versioned market-state evidence to typed `JevProviderRequest`;
+- uses one deterministic request ID across bounded retries;
+- pins provider model ID/version;
+- validates response schema, state ID, feature schema, model version, timestamps, action and every probability;
+- rejects stale state/response data;
+- applies per-attempt timeout/cancellation;
+- retries only transient provider failures;
+- opens a circuit breaker after the configured number of failed evaluations;
+- emits telemetry that contains no API secret;
+- never sizes or submits a trade.
 
-Continuation, reversal, and false-break remain explicit constant baseline heads until those target semantics are separately defined and trained. They are **not** represented as learned evidence.
+### Secrets
 
-The action is derived inside the model adapter from calibrated first-passage edge:
+Production Windows hosts should store the provider credential as a **Generic Credential** in Windows Credential Manager and configure only its target name/reference.
 
-```text
-long edge  = P(+5 first) - P(long adverse first)
-short edge = P(-5 first) - P(short adverse first)
-```
+`WindowsCredentialManagerJevSecretProvider` reads that credential at runtime. The secret value is wrapped in `JevSecret`, whose `ToString()` is always redacted. Secrets, passwords and API tokens must never be committed to repository settings or telemetry.
 
-If neither exceeds the artifact's versioned minimum edge, the model returns `Wait`.
+CI uses fake secret/provider implementations only.
 
-## Artifact safety
+## JEV failure policy
 
-The committed artifact under `research/training/fixtures` is a **synthetic contract/parity fixture only**. It must never be promoted as an XAU trading model or performance claim.
+`JevDecisionCoordinator` applies the existing product setting:
 
-Real artifacts must be produced by the offline training pipeline from replay/label exports and retain:
+- `StopNewTrades`: a JEV adapter failure returns no decision and explicitly stops new trades.
+- `FallbackToXauNative`: only the XAU Native model may be used as fallback. Its decision must reference the same MarketStateId/schema and is explicitly marked as fallback in the coordinator result/telemetry.
 
-- feature schema version;
-- temporal split metadata;
-- dataset hashes;
-- trainer version and seed;
-- calibration/OOS report;
-- artifact SHA-256.
+External cancellation is not converted into fallback.
 
-ONNX remains an allowed future runtime format. V0 JSON linear inference is intentionally stable, dependency-light, and independently verifiable in both Python and C#.
+This coordinator does not implement shadow comparison; primary/shadow authority remains XSP-014.
