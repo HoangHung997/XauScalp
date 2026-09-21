@@ -7,6 +7,7 @@ using XauScalp.Features;
 using XauScalp.MarketData;
 using XauScalp.Persistence;
 using XauScalp.Risk;
+using XauScalp.Replay;
 using XauScalp.Runtime;
 
 namespace XauScalp.DemoRunner;
@@ -275,9 +276,15 @@ internal static class Program
                 TimeSpan.FromSeconds(
                     configuration.MaxBrokerTickAgeSec)));
 
+        var costScenario = new ReplayCostScenario(
+            "broker-demo-configured-costs",
+            configuration.CostAssumptions.EstimatedLatencyMs,
+            configuration.CostAssumptions.EstimatedSlippagePoints,
+            configuration.CostAssumptions.CommissionPerLot);
+
         var runtimeFeatureContext =
-            new DemoRuntimeFeatureContext(
-                configuration.CostAssumptions);
+            new CausalAtrReplayContextProvider(
+                configuration.BuildBrokerClock());
         var trigger = new DemoEvaluationTrigger(
             configuration.Evaluation);
 
@@ -294,6 +301,7 @@ internal static class Program
             rawStore,
             featureEngine,
             runtimeFeatureContext,
+            costScenario,
             cancellationToken).ConfigureAwait(false);
 
         Console.WriteLine(
@@ -331,12 +339,12 @@ internal static class Program
             }
 
             featureEngine.SetExternalContext(
-                runtimeFeatureContext.Build(
-                    tick.TimestampUtc));
+                runtimeFeatureContext.GetContext(
+                    tick,
+                    costScenario));
 
             XauMarketState state =
                 featureEngine.Update(tick);
-            runtimeFeatureContext.ObserveState(state);
 
             if (state.Readiness.RequiredP0Ready)
             {
@@ -393,7 +401,8 @@ internal static class Program
     private static async Task<long> RestoreFeatureStateAsync(
         AppendOnlyJsonlMarketEventStore rawStore,
         XauFeatureEngine featureEngine,
-        DemoRuntimeFeatureContext runtimeContext,
+        CausalAtrReplayContextProvider runtimeContext,
+        ReplayCostScenario costScenario,
         CancellationToken cancellationToken)
     {
         long count = 0;
@@ -407,11 +416,10 @@ internal static class Program
             if (marketEvent is TickEvent tick)
             {
                 featureEngine.SetExternalContext(
-                    runtimeContext.Build(
-                        tick.TimestampUtc));
-                XauMarketState state =
-                    featureEngine.Update(tick);
-                runtimeContext.ObserveState(state);
+                    runtimeContext.GetContext(
+                        tick,
+                        costScenario));
+                _ = featureEngine.Update(tick);
             }
             else
             {
