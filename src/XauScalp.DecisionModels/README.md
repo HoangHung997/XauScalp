@@ -15,34 +15,29 @@ The native V0 runtime and offline training pipeline are documented in `research/
 
 `JevDecisionModel` is provider-independent. A provider integration implements `IJevProviderClient`; domain and risk/execution layers never depend on a provider SDK.
 
-The adapter:
+The adapter pins provider version, validates typed probabilities/schema/state identity, rejects stale responses, uses bounded retry/timeout/circuit breaker behavior, and obtains secrets through OS-backed providers such as Windows Credential Manager.
 
-- maps the complete versioned market-state evidence to typed `JevProviderRequest`;
-- uses one deterministic request ID across bounded retries;
-- pins provider model ID/version;
-- validates response schema, state ID, feature schema, model version, timestamps, action and every probability;
-- rejects stale state/response data;
-- applies per-attempt timeout/cancellation;
-- retries only transient provider failures;
-- opens a circuit breaker after the configured number of failed evaluations;
-- emits telemetry that contains no API secret;
-- never sizes or submits a trade.
+## Primary / shadow authority
 
-### Secrets
+`PrimaryShadowDecisionOrchestrator` is the single comparison boundary.
 
-Production Windows hosts should store the provider credential as a **Generic Credential** in Windows Credential Manager and configure only its target name/reference.
+- Primary and shadow receive the same immutable `XauMarketState` instance.
+- The shadow result is persisted but is never exposed through the authoritative trade sink.
+- Only a primary Long/Short decision can reach `IAuthoritativeTradeDecisionSink`.
+- A primary Wait causes zero downstream trade-decision calls even if shadow says Long/Short.
+- If primary JEV uses the configured XAU Native fallback, the fallback is explicitly marked.
+- A shadow failure never silently becomes primary authority.
+- External cancellation stops the whole evaluation.
 
-`WindowsCredentialManagerJevSecretProvider` reads that credential at runtime. The secret value is wrapped in `JevSecret`, whose `ToString()` is always redacted. Secrets, passwords and API tokens must never be committed to repository settings or telemetry.
+`DecisionComparisonRecord` persists both roles. `DecisionFutureLabels` may be attached later by MarketStateId after replay labels exist. `ExecutedTradeOutcome` may only link to the authoritative primary decision.
 
-CI uses fake secret/provider implementations only.
+`DecisionComparisonReportBuilder` intentionally exposes two separate sections:
 
-## JEV failure policy
+1. **All-state** probability scoring for primary and shadow decisions with future labels.
+2. **Executed-trade** outcomes only for decisions that actually became authoritative trades.
 
-`JevDecisionCoordinator` applies the existing product setting:
+This separation prevents selection-biased executed trades from being presented as overall model quality.
 
-- `StopNewTrades`: a JEV adapter failure returns no decision and explicitly stops new trades.
-- `FallbackToXauNative`: only the XAU Native model may be used as fallback. Its decision must reference the same MarketStateId/schema and is explicitly marked as fallback in the coordinator result/telemetry.
+Durable JSONL storage is provided by `XauScalp.Persistence.DecisionComparisonJsonlStore`.
 
-External cancellation is not converted into fallback.
-
-This coordinator does not implement shadow comparison; primary/shadow authority remains XSP-014.
+Primary/shadow comparison does not create `TradePlan` and does not bypass hard risk. The authoritative sink is an input to the later risk/execution pipeline, not broker execution itself.
