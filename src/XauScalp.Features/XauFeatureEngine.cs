@@ -849,9 +849,18 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         }
         else
         {
-            DateTimeOffset brokerUtc = brokerTimestamp.ToUniversalTime();
-            if (brokerUtc > asOfUtc
-                || asOfUtc - brokerUtc > _options.MaxBrokerTickAge)
+            DateTime expectedBrokerLocal =
+                _clockNormalizer.Normalize(asOfUtc)
+                    .BrokerLocalDateTime;
+            DateTime sourceBrokerWallClock =
+                DateTime.SpecifyKind(
+                    brokerTimestamp.DateTime,
+                    DateTimeKind.Unspecified);
+            TimeSpan brokerTickAge =
+                expectedBrokerLocal - sourceBrokerWallClock;
+
+            if (brokerTickAge < TimeSpan.Zero
+                || brokerTickAge > _options.MaxBrokerTickAge)
             {
                 missing.Add("stale broker tick");
             }
