@@ -169,12 +169,15 @@ public sealed class ExecutionEngine
                     ExecutionOperationKind.Submit,
                     OrderLifecycleState.Filled,
                     mapped,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    response.BrokerPositionId).ConfigureAwait(false);
 
                 return await AppendOpenAsync(
                     plan,
                     mapped,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    ExecutionOperationKind.Submit,
+                    response.BrokerPositionId).ConfigureAwait(false);
             }
 
             OrderLifecycleState effective = response.Outcome switch
@@ -242,7 +245,8 @@ public sealed class ExecutionEngine
                 snapshot.Plan,
                 mapped,
                 cancellationToken,
-                ExecutionOperationKind.Modify).ConfigureAwait(false);
+                ExecutionOperationKind.Modify,
+                snapshot.BrokerPositionId).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -302,17 +306,31 @@ public sealed class ExecutionEngine
                 return mapped;
             }
 
-            ExecutionResult closed = mapped with
+            if (response.Outcome is BrokerExecutionOutcome.Accepted
+                or BrokerExecutionOutcome.PartiallyFilled)
             {
-                State = OrderLifecycleState.Closed,
-            };
+                await AppendAsync(
+                    snapshot.Plan,
+                    ExecutionOperationKind.Close,
+                    OrderLifecycleState.ClosePending,
+                    mapped,
+                    cancellationToken,
+                    snapshot.BrokerPositionId).ConfigureAwait(false);
+
+                return mapped;
+            }
+
+            ExecutionResult closed = CopyWithState(
+                mapped,
+                OrderLifecycleState.Closed);
 
             await AppendAsync(
                 snapshot.Plan,
                 ExecutionOperationKind.Close,
                 OrderLifecycleState.Closed,
                 closed,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                snapshot.BrokerPositionId).ConfigureAwait(false);
 
             return closed;
         }
@@ -372,6 +390,8 @@ public sealed class ExecutionEngine
                 or OrderLifecycleState.PartiallyFilled
                 or OrderLifecycleState.Filled
                 or OrderLifecycleState.Open
+                or OrderLifecycleState.ModifyPending
+                or OrderLifecycleState.ClosePending
                 or OrderLifecycleState.UnknownNeedsReconciliation)
             {
                 issues.Add(
@@ -498,7 +518,8 @@ public sealed class ExecutionEngine
                 ExecutionOperationKind.Reconcile,
                 OrderLifecycleState.Open,
                 open,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken,
+                position.BrokerPositionId).ConfigureAwait(false);
 
             return true;
         }
@@ -584,7 +605,7 @@ public sealed class ExecutionEngine
                 "Position modification/close requires reconciled Open state.");
         }
 
-        string? localBrokerPositionId = snapshot.LatestResult.Message;
+        string? localBrokerPositionId = snapshot.BrokerPositionId;
         if (!string.IsNullOrWhiteSpace(localBrokerPositionId)
             && !string.Equals(
                 localBrokerPositionId,
@@ -602,21 +623,20 @@ public sealed class ExecutionEngine
         TradePlan plan,
         ExecutionResult source,
         CancellationToken cancellationToken,
-        ExecutionOperationKind operation = ExecutionOperationKind.Submit)
+        ExecutionOperationKind operation = ExecutionOperationKind.Submit,
+        string? brokerPositionId = null)
     {
-        ExecutionResult open = source with
-        {
-            ExecutionResultId = Guid.NewGuid(),
-            State = OrderLifecycleState.Open,
-            OccurredAtUtc = _timeProvider.GetUtcNow(),
-        };
+        ExecutionResult open = CopyWithState(
+            source,
+            OrderLifecycleState.Open);
 
         await AppendAsync(
             plan,
             operation,
             OrderLifecycleState.Open,
             open,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            brokerPositionId).ConfigureAwait(false);
 
         return open;
     }
@@ -711,7 +731,8 @@ public sealed class ExecutionEngine
         ExecutionOperationKind operation,
         OrderLifecycleState effectiveState,
         ExecutionResult result,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? brokerPositionId = null)
     {
         await _journal
             .AppendAsync(
@@ -722,10 +743,33 @@ public sealed class ExecutionEngine
                     _ownership,
                     operation,
                     effectiveState,
+                    brokerPositionId,
                     result,
                     _timeProvider.GetUtcNow()),
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private ExecutionResult CopyWithState(
+        ExecutionResult source,
+        OrderLifecycleState state)
+    {
+        return new ExecutionResult(
+            ContractVersions.ExecutionResultV1,
+            Guid.NewGuid(),
+            source.TradeIntentId,
+            state,
+            source.BrokerOrderId,
+            source.BrokerDealId,
+            source.RequestedPrice,
+            source.FillPrice,
+            source.RequestedVolumeLots,
+            source.FilledVolumeLots,
+            source.SlippagePoints,
+            source.Latency,
+            source.BrokerRetcode,
+            source.Message,
+            _timeProvider.GetUtcNow());
     }
 
     private ExecutionResult MapBrokerResponse(
