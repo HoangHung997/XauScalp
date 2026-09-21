@@ -199,10 +199,16 @@ public sealed class ExecutionJournalJsonlStore :
     {
         ExecutionJournalEvent latest = events[^1];
 
+        string? brokerPositionId = events
+            .Where(static item => !string.IsNullOrWhiteSpace(item.BrokerPositionId))
+            .Select(static item => item.BrokerPositionId)
+            .LastOrDefault();
+
         return new ExecutionLifecycleSnapshot(
             latest.Plan,
             latest.Ownership,
             latest.EffectiveState,
+            brokerPositionId,
             latest.Result,
             events);
     }
