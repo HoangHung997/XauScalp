@@ -47,10 +47,27 @@ Modify/close management requires exact:
 - TradeIntentId;
 - broker position identity when known.
 
+## MT5 demo adapter
+
+XSP-017 adds `Mt5DemoExecutionBrokerGateway` and `Mt5DemoFileExecutionTransport` as a broker-specific adapter behind `IExecutionBrokerGateway`.
+
+The adapter is intentionally demo-only:
+
+- requires a fresh, demo-verified bridge heartbeat before writing a command;
+- binds commands to the current bridge session;
+- validates configured broker symbol and ownership;
+- treats timeout after durable command append as unknown, forcing broker reconciliation;
+- maps unknown owned broker positions/orders to deterministic orphan identities so unsafe state cannot be ignored;
+- never grants execution authority to a decision model.
+
+The MQL5 peer is `mt5/XauScalpDemoExecutionBridge.mq5`. Protocol details are in `mt5/protocol/MT5_DEMO_EXECUTION_PROTOCOL.md`.
+
 ## Audit data
 
-ExecutionResult records requested/fill price, requested/filled volume, slippage points, latency, broker retcode and order/deal IDs.
+`ExecutionResult` records requested/fill price, requested/filled volume, slippage points, latency, broker retcode and order/deal IDs.
 
 `ExecutionJournalJsonlStore` in Persistence reconstructs the lifecycle after process restart.
 
-This layer does not enable live money by itself.
+## Live money
+
+This layer does not enable live money. The XSP-017 MQL5 adapter fails initialization on non-demo accounts, and any future live transport would require a separate explicitly approved product change.
