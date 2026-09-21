@@ -111,3 +111,18 @@ The .NET file transport buffers characters until a newline is present. It never 
 ## Safety
 
 This protocol is market-data-only. It contains no API key, password, broker login, order request, lot sizing, or risk bypass.
+
+
+## News context frames
+
+The market-data bridge emits ordered `type=news` frames from the MT5 economic calendar. The frame contains:
+
+- the same monotonic source sequence as ticks/specification/connection frames;
+- broker symbol;
+- `available`;
+- seconds to nearest upcoming USD high-impact event;
+- seconds since nearest past USD high-impact event;
+- source identity;
+- MT5 source error code when unavailable.
+
+When the MT5 calendar cannot be queried, distances are `null` and `available=false`. Consumers must not substitute zero or claim "no news". Because the frame is persisted with raw market evidence, live and replay use identical causal news semantics.
