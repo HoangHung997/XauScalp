@@ -7,7 +7,7 @@ namespace XauScalp.Features;
 
 public sealed class XauFeatureEngine : IXauFeatureEngine
 {
-    public const string EngineVersion = "xau-feature-engine-xsp006-v1";
+    public const string EngineVersion = "xau-feature-engine-xsp007-v1";
 
     private static readonly TimeSpan Window250Ms = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan Window500Ms = TimeSpan.FromMilliseconds(500);
@@ -24,6 +24,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
     private readonly RollingTickSeries _ticks = new();
     private readonly List<VelocitySample> _velocity500Ms = [];
     private readonly CausalLiquidityTracker _liquidity = new();
+    private readonly CausalStructureRegimeTracker _structureRegime = new();
 
     private SymbolSpecificationEvent? _symbolSpecificationEvent;
     private FeatureExternalContext? _externalContext;
@@ -110,10 +111,14 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         foreach (BarEvent barEvent in barEvents)
         {
             if (barEvent.UpdateKind == BarUpdateKind.Closed
-                && barEvent.Bar is ClosedBarState closed
-                && closed.Timeframe == BarTimeframe.M1)
+                && barEvent.Bar is ClosedBarState closed)
             {
-                _liquidity.ObserveClosedM1(closed);
+                _structureRegime.ObserveClosedBar(closed);
+
+                if (closed.Timeframe == BarTimeframe.M1)
+                {
+                    _liquidity.ObserveClosedM1(closed);
+                }
             }
         }
 
@@ -122,6 +127,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
 
         UpdateVelocityState(tick.TimestampUtc);
         UpdateLiquidityState(tick);
+        _structureRegime.UpdateTick(tick);
 
         _lastState = BuildState(
             tick.TimestampUtc,
@@ -152,11 +158,12 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         NormalizedMarketTime normalizedTime = _clockNormalizer.Normalize(asOfUtc, brokerTimestamp);
         FeatureExternalContext? external = GetFreshExternalContext(asOfUtc);
 
-        var features = new List<NumericFeatureValue>(112);
+        var features = new List<NumericFeatureValue>(176);
         AddExecutionFeatures(features, lastTick, asOfUtc, normalizedTime, external);
         AddLiveM1Features(features, m1, lastTick, asOfUtc, external);
         AddMicrostructureFeatures(features, asOfUtc);
         AddLiquidityFeatures(features, lastTick, asOfUtc, external);
+        AddStructureRegimeFeatures(features, lastTick, m1.State, asOfUtc);
 
         string[] missingRequirements = DetermineMissingRequirements(asOfUtc, external);
         bool tickHistoryReady = _ticks.IsWarm(asOfUtc, TimeSpan.FromSeconds(15));
@@ -652,6 +659,40 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
                     metric.Name,
                     metric.Unit,
                     metric.UnavailableReason ?? "liquidity metric unavailable");
+            }
+        }
+    }
+
+    private void AddStructureRegimeFeatures(
+        List<NumericFeatureValue> features,
+        TickEvent tick,
+        FormingBarState formingM1,
+        DateTimeOffset asOfUtc)
+    {
+        decimal mid = (tick.Bid + tick.Ask) / 2m;
+        IReadOnlyList<StructureFeatureMetric> metrics = _structureRegime.Snapshot(
+            asOfUtc,
+            mid,
+            formingM1);
+
+        foreach (StructureFeatureMetric metric in metrics)
+        {
+            if (metric.IsAvailable)
+            {
+                AddAvailable(
+                    features,
+                    metric.Name,
+                    metric.Value!.Value,
+                    metric.Unit,
+                    metric.ObservedAtUtc ?? asOfUtc);
+            }
+            else
+            {
+                AddUnavailable(
+                    features,
+                    metric.Name,
+                    metric.Unit,
+                    metric.UnavailableReason ?? "structure/regime metric unavailable");
             }
         }
     }
