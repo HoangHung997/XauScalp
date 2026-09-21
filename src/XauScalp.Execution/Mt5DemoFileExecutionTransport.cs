@@ -103,8 +103,8 @@ public sealed class Mt5DemoFileExecutionTransport : IMt5DemoExecutionTransport
                     Mt5DemoExecutionProtocol.BridgeReadyType,
                     StringComparison.Ordinal))
             {
-                BridgeReady ready = ParseReady(root);
-                readyBySession[ready.SessionId] = ready;
+                BridgeReady readyEvent = ParseReady(root);
+                readyBySession[readyEvent.SessionId] = readyEvent;
                 continue;
             }
 
