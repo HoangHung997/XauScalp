@@ -131,6 +131,40 @@ public sealed class DesktopUiContractTests
     }
 
     [Fact]
+    public void OperationalStatusRaisesPropertyChangedForRuntimeRefresh()
+    {
+        var status = new OperationalStatusViewModel();
+        var changed = new List<string>();
+
+        status.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName is not null)
+            {
+                changed.Add(args.PropertyName);
+            }
+        };
+
+        status.Apply(
+            new OperationalStatusSnapshot(
+                FeedHealth: "Healthy",
+                FeatureReadiness: "Ready",
+                SelectedModel: "XAU Native AI",
+                ModelVersion: "native-v0",
+                ModelLatency: "3 ms",
+                ModelError: "None",
+                RiskLockState: "Unlocked",
+                BrokerConnection: "Connected",
+                CurrentPosition: "None",
+                DataStaleness: "12 ms"));
+
+        Assert.Contains(nameof(OperationalStatusViewModel.FeedHealth), changed);
+        Assert.Contains(nameof(OperationalStatusViewModel.FeatureReadiness), changed);
+        Assert.Contains(nameof(OperationalStatusViewModel.SelectedModel), changed);
+        Assert.Contains(nameof(OperationalStatusViewModel.BrokerConnection), changed);
+        Assert.Contains(nameof(OperationalStatusViewModel.DataStaleness), changed);
+    }
+
+    [Fact]
     public void OperationalStatusExposesRequiredRuntimeHealthFields()
     {
         var status = new OperationalStatusViewModel();
