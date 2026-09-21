@@ -322,12 +322,12 @@ public sealed class DemoTradingRuntimeCoordinatorTests
             new PortfolioState(
                 ContractVersions.PortfolioStateV1,
                 now,
-                Balance: 10_000m,
-                Equity: 10_000m,
-                FreeMargin: 9_000m,
-                RealizedPnlToday: 0m,
-                TradesToday: 0,
-                Positions: []),
+                balance: 10_000m,
+                equity: 10_000m,
+                freeMargin: 9_000m,
+                realizedPnlToday: 0m,
+                tradesToday: 0,
+                positions: []),
             new Mt5DemoSymbolRiskWire(
                 Point: 0.01m,
                 TickSize: 0.10m,
