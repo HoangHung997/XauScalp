@@ -215,7 +215,10 @@ public sealed class PrimaryShadowDecisionOrchestratorTests
         DecisionComparisonReport report = DecisionComparisonReportBuilder.Build(
             await store.ReadAllAsync(CancellationToken.None));
 
-        Assert.Equal(2, report.AllState.Count);
+        Assert.Collection(
+            report.AllState,
+            static _ => { },
+            static _ => { });
         Assert.Single(report.ExecutedTrades);
         Assert.Equal(
             DecisionModelType.Jev,
