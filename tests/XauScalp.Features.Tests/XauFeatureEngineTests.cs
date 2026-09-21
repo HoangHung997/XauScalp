@@ -66,6 +66,84 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void PersistedNewsContext_OverridesOutOfBandNewsFields()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        engine.ObserveContext(
+            new NewsContextEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                sequenceId: 1,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                isAvailable: true,
+                newsDistanceBeforeSec: 120,
+                newsDistanceAfterSec: 3_600,
+                source: "mt5-economic-calendar:USD:high",
+                sourceErrorCode: null));
+
+        XauMarketState state = engine.Update(
+            Tick(2, start.AddSeconds(1), 100m));
+
+        AssertFeature(
+            state,
+            FeatureNames.NewsDistanceBeforeSec,
+            120,
+            8);
+        AssertFeature(
+            state,
+            FeatureNames.NewsDistanceAfterSec,
+            3_600,
+            8);
+        AssertFeature(
+            state,
+            FeatureNames.IsHighImpactNewsWindow,
+            1,
+            8);
+        Assert.True(state.Readiness.NewsDataAvailable);
+    }
+
+    [Fact]
+    public void ExplicitUnavailableNewsEvent_FailsClosedInsteadOfFallingBack()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        engine.ObserveContext(
+            new NewsContextEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                sequenceId: 1,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                isAvailable: false,
+                newsDistanceBeforeSec: null,
+                newsDistanceAfterSec: null,
+                source: "mt5-economic-calendar:USD:high",
+                sourceErrorCode: 5401));
+
+        XauMarketState state = engine.Update(
+            Tick(2, start.AddSeconds(1), 100m));
+
+        Assert.False(
+            Feature(state, FeatureNames.NewsDistanceBeforeSec)
+                .IsAvailable);
+        Assert.False(
+            Feature(state, FeatureNames.IsHighImpactNewsWindow)
+                .IsAvailable);
+        Assert.False(state.Readiness.NewsDataAvailable);
+        Assert.Contains(
+            "news context",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+        Assert.False(state.Readiness.RequiredP0Ready);
+    }
+
+    [Fact]
     public void LiquiditySlice_IsIntegratedAndExplicitlyEstimated()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
