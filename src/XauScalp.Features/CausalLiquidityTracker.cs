@@ -466,11 +466,11 @@ public sealed class CausalLiquidityTracker
         return upper
             ? levels.Where(level => previous <= level && current > level)
                 .OrderBy(level => Math.Abs(level - previous))
-                .Cast<decimal?>()
+                .Select(static level => (decimal?)level)
                 .FirstOrDefault()
             : levels.Where(level => previous >= level && current < level)
                 .OrderBy(level => Math.Abs(level - previous))
-                .Cast<decimal?>()
+                .Select(static level => (decimal?)level)
                 .FirstOrDefault();
     }
 
@@ -481,7 +481,7 @@ public sealed class CausalLiquidityTracker
 
         return candidates
             .OrderBy(level => Math.Abs(level - current))
-            .Cast<decimal?>()
+            .Select(static level => (decimal?)level)
             .FirstOrDefault();
     }
 
@@ -500,9 +500,7 @@ public sealed class CausalLiquidityTracker
 
     private static SwingLevel? NearestSwing(List<SwingLevel> swings, decimal current)
     {
-        return swings
-            .OrderBy(swing => Math.Abs(swing.Price - current))
-            .LastOrDefault() is null
+        return swings.Count == 0
             ? null
             : swings.OrderBy(swing => Math.Abs(swing.Price - current)).First();
     }
@@ -715,7 +713,7 @@ public sealed class CausalLiquidityTracker
         }
 
         if (name.Contains("Occurred", StringComparison.Ordinal)
-            || name.Contains("AfterTouch", StringComparison.Ordinal)
+            || name == FeatureNames.DirectionFlipAfterTouch
             || name == FeatureNames.InsideVacuum)
         {
             return "boolean";
