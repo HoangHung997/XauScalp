@@ -250,26 +250,46 @@ public static class DemoEvidenceBuilder
         IEnumerable<DecisionComparisonBundle> bundles,
         DecisionModelType model)
     {
-        return bundles
-            .SelectMany(
-                static bundle =>
-                    bundle.Comparison.Shadow is null
-                        ? [bundle.Comparison.Primary]
-                        : new[]
-                        {
-                            bundle.Comparison.Primary,
-                            bundle.Comparison.Shadow,
-                        })
-            .Where(
-                record =>
-                    record.Succeeded
-                    && record.ActualModel == model
-                    && record.EvaluationLatency >= TimeSpan.Zero)
-            .Select(
-                static record =>
-                    record.EvaluationLatency.TotalMilliseconds)
-            .Where(double.IsFinite)
-            .ToArray();
+        var values = new List<double>();
+
+        foreach (DecisionComparisonBundle bundle in bundles)
+        {
+            AddLatency(
+                bundle.Comparison.Primary,
+                model,
+                values);
+
+            if (bundle.Comparison.Shadow is ModelDecisionRecord shadow)
+            {
+                AddLatency(
+                    shadow,
+                    model,
+                    values);
+            }
+        }
+
+        return values.ToArray();
+    }
+
+    private static void AddLatency(
+        ModelDecisionRecord record,
+        DecisionModelType model,
+        List<double> values)
+    {
+        if (!record.Succeeded
+            || record.ActualModel != model
+            || record.EvaluationLatency < TimeSpan.Zero)
+        {
+            return;
+        }
+
+        double milliseconds =
+            record.EvaluationLatency.TotalMilliseconds;
+
+        if (double.IsFinite(milliseconds))
+        {
+            values.Add(milliseconds);
+        }
     }
 
     private static void ValidateManifest(
