@@ -164,6 +164,83 @@ public sealed class DemoRunnerTests
     }
 
     [Fact]
+    public async Task RiskSynchronizer_FailsClosedWhenLedgerMissingButOwnedPositionExists()
+    {
+        string directory = TempDirectory();
+        string riskPath = Path.Combine(directory, "risk.jsonl");
+        string observationsPath = Path.Combine(
+            directory,
+            "observations.jsonl");
+        DateTimeOffset now = Utc(12, 0, 0);
+
+        try
+        {
+            await using var ledger =
+                new RiskLedgerJsonlStore(
+                    riskPath,
+                    Ownership);
+            await using var observations =
+                new DemoObservationJsonlStore(
+                    observationsPath);
+
+            var synchronizer = new DemoRiskLedgerSynchronizer(
+                ledger,
+                Ownership,
+                observations,
+                new FixedTimeProvider(now));
+
+            var context = new Mt5DemoBrokerContextSnapshot(
+                "XAUUSD",
+                "XAUUSD.G",
+                new BrokerReconciliationSnapshot(
+                    [
+                        new BrokerPositionSnapshot(
+                            Guid.Parse(
+                                "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                            "position-1",
+                            "XAUUSD",
+                            "XAUUSD.G",
+                            TradeSide.Long,
+                            0.10m,
+                            2500m,
+                            2495m,
+                            2510m,
+                            Ownership),
+                    ],
+                    [],
+                    new HashSet<Guid>()),
+                new PortfolioState(
+                    ContractVersions.PortfolioStateV1,
+                    now,
+                    10_000m,
+                    10_000m,
+                    8_000m,
+                    0m,
+                    0,
+                    []),
+                new Mt5DemoSymbolRiskWire(
+                    0.01m,
+                    0.01m,
+                    1m,
+                    0.01m,
+                    100m,
+                    0.01m,
+                    0.5m,
+                    500m),
+                []);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => synchronizer.EnsureAndSyncAsync(
+                    context,
+                    CancellationToken.None));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RiskSynchronizer_FailsClosedWhenTodayAlreadyHasBrokerCloseButLedgerMissing()
     {
         string directory = TempDirectory();
