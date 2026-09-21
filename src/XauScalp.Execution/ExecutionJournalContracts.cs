@@ -17,6 +17,7 @@ public sealed record ExecutionJournalEvent(
     PositionOwnership Ownership,
     ExecutionOperationKind Operation,
     OrderLifecycleState EffectiveState,
+    string? BrokerPositionId,
     ExecutionResult Result,
     DateTimeOffset RecordedAtUtc);
 
@@ -24,6 +25,7 @@ public sealed record ExecutionLifecycleSnapshot(
     TradePlan Plan,
     PositionOwnership Ownership,
     OrderLifecycleState EffectiveState,
+    string? BrokerPositionId,
     ExecutionResult LatestResult,
     IReadOnlyList<ExecutionJournalEvent> History);
 
@@ -119,10 +121,16 @@ public sealed class InMemoryExecutionJournal : IExecutionJournal
     {
         ExecutionJournalEvent latest = events[^1];
 
+        string? brokerPositionId = events
+            .Where(static item => !string.IsNullOrWhiteSpace(item.BrokerPositionId))
+            .Select(static item => item.BrokerPositionId)
+            .LastOrDefault();
+
         return new ExecutionLifecycleSnapshot(
             latest.Plan,
             latest.Ownership,
             latest.EffectiveState,
+            brokerPositionId,
             latest.Result,
             events.ToArray());
     }
