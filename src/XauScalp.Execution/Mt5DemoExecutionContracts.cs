@@ -197,6 +197,8 @@ public sealed record Mt5DemoSymbolRiskWire(
     decimal EstimatedMarginPerLotMoney);
 
 public sealed record Mt5DemoBrokerContextSnapshot(
+    string CanonicalSymbol,
+    string BrokerSymbol,
     BrokerReconciliationSnapshot Reconciliation,
     PortfolioState Portfolio,
     Mt5DemoSymbolRiskWire SymbolRisk);
