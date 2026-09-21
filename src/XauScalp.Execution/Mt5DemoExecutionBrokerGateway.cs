@@ -4,10 +4,11 @@ using XauScalp.Domain;
 
 namespace XauScalp.Execution;
 
-public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
+public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway, IMt5DemoBrokerContextProvider
 {
     private readonly Mt5DemoExecutionGatewayOptions _options;
     private readonly IMt5DemoExecutionTransport _transport;
+    private readonly TimeProvider _timeProvider;
 
     public Mt5DemoExecutionBrokerGateway(
         Mt5DemoExecutionGatewayOptions options,
@@ -15,8 +16,9 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
         TimeProvider? timeProvider = null)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _transport = transport
-            ?? new Mt5DemoFileExecutionTransport(_options, timeProvider);
+            ?? new Mt5DemoFileExecutionTransport(_options, _timeProvider);
     }
 
     public async Task<BrokerExecutionResponse> SubmitAsync(
@@ -132,6 +134,55 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
     public async Task<BrokerReconciliationSnapshot> QueryStateAsync(
         CancellationToken cancellationToken)
     {
+        Mt5DemoExecutionReply reply = await QueryStateReplyAsync(
+            cancellationToken).ConfigureAwait(false);
+
+        return MapReconciliation(reply);
+    }
+
+    public async Task<Mt5DemoBrokerContextSnapshot> QueryDemoContextAsync(
+        CancellationToken cancellationToken)
+    {
+        Mt5DemoExecutionReply reply = await QueryStateReplyAsync(
+            cancellationToken).ConfigureAwait(false);
+
+        BrokerReconciliationSnapshot reconciliation = MapReconciliation(reply);
+
+        Mt5DemoAccountWire account = reply.Account
+            ?? throw new InvalidDataException(
+                "MT5 demo state response is missing account risk context.");
+
+        Mt5DemoSymbolRiskWire symbolRisk = reply.SymbolRisk
+            ?? throw new InvalidDataException(
+                "MT5 demo state response is missing symbol risk context.");
+
+        ValidateAccountContext(account);
+        ValidateSymbolRiskContext(symbolRisk);
+
+        PositionState[] positions = (reply.Positions
+                ?? Array.Empty<Mt5DemoPositionWire>())
+            .Select(MapPortfolioPosition)
+            .ToArray();
+
+        var portfolio = new PortfolioState(
+            ContractVersions.PortfolioStateV1,
+            _timeProvider.GetUtcNow(),
+            account.Balance,
+            account.Equity,
+            account.FreeMargin,
+            realizedPnlToday: 0m,
+            tradesToday: 0,
+            positions);
+
+        return new Mt5DemoBrokerContextSnapshot(
+            reconciliation,
+            portfolio,
+            symbolRisk);
+    }
+
+    private async Task<Mt5DemoExecutionReply> QueryStateReplyAsync(
+        CancellationToken cancellationToken)
+    {
         var command = new Mt5DemoExecutionCommand(
             Mt5DemoExecutionProtocol.Version,
             Guid.NewGuid(),
@@ -174,15 +225,24 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
                 "MT5 demo bridge state response operation does not match queryState.");
         }
 
-        BrokerPositionSnapshot[] positions = (reply.Positions ?? Array.Empty<Mt5DemoPositionWire>())
+        return reply;
+    }
+
+    private BrokerReconciliationSnapshot MapReconciliation(
+        Mt5DemoExecutionReply reply)
+    {
+        BrokerPositionSnapshot[] positions = (reply.Positions
+                ?? Array.Empty<Mt5DemoPositionWire>())
             .Select(MapPosition)
             .ToArray();
 
-        BrokerOrderSnapshot[] orders = (reply.Orders ?? Array.Empty<Mt5DemoOrderWire>())
+        BrokerOrderSnapshot[] orders = (reply.Orders
+                ?? Array.Empty<Mt5DemoOrderWire>())
             .Select(MapOrder)
             .ToArray();
 
-        HashSet<Guid> closed = (reply.ClosedTradeIntentIds ?? Array.Empty<Guid>())
+        HashSet<Guid> closed = (reply.ClosedTradeIntentIds
+                ?? Array.Empty<Guid>())
             .Select(RequireNonEmptyTradeIntentId)
             .ToHashSet();
 
@@ -353,6 +413,93 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
             _options.Ownership);
     }
 
+    private PositionState MapPortfolioPosition(
+        Mt5DemoPositionWire wire)
+    {
+        BrokerPositionSnapshot brokerPosition = MapPosition(wire);
+
+        if (wire.CurrentPrice is not decimal currentPrice
+            || currentPrice <= 0)
+        {
+            throw new InvalidDataException(
+                $"MT5 demo broker position {brokerPosition.BrokerPositionId} is missing a positive current price.");
+        }
+
+        if (wire.UnrealizedPnlMoney is not decimal unrealizedPnl)
+        {
+            throw new InvalidDataException(
+                $"MT5 demo broker position {brokerPosition.BrokerPositionId} is missing unrealized P/L.");
+        }
+
+        if (wire.OpenedAtUnixMs is not long openedAtUnixMs
+            || openedAtUnixMs <= 0)
+        {
+            throw new InvalidDataException(
+                $"MT5 demo broker position {brokerPosition.BrokerPositionId} is missing open time.");
+        }
+
+        DateTimeOffset openedAt;
+        try
+        {
+            openedAt = DateTimeOffset.FromUnixTimeMilliseconds(openedAtUnixMs);
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            throw new InvalidDataException(
+                $"MT5 demo broker position {brokerPosition.BrokerPositionId} has invalid open time.",
+                exception);
+        }
+
+        return new PositionState(
+            DeterministicPositionId(
+                brokerPosition.TradeIntentId,
+                brokerPosition.BrokerPositionId),
+            brokerPosition.TradeIntentId,
+            brokerPosition.BrokerPositionId,
+            brokerPosition.Symbol,
+            brokerPosition.BrokerSymbol,
+            brokerPosition.Side,
+            brokerPosition.VolumeLots,
+            brokerPosition.EntryPrice,
+            currentPrice,
+            brokerPosition.StopLossPrice,
+            brokerPosition.TakeProfitPrice,
+            unrealizedPnl,
+            mfePrice: 0m,
+            maePrice: 0m,
+            openedAt,
+            _options.Ownership);
+    }
+
+    private static void ValidateAccountContext(
+        Mt5DemoAccountWire account)
+    {
+        if (account.Balance < 0
+            || account.Equity < 0
+            || account.FreeMargin < 0)
+        {
+            throw new InvalidDataException(
+                "MT5 demo account balance/equity/free-margin context is invalid.");
+        }
+    }
+
+    private static void ValidateSymbolRiskContext(
+        Mt5DemoSymbolRiskWire symbolRisk)
+    {
+        if (symbolRisk.Point <= 0
+            || symbolRisk.TickSize <= 0
+            || symbolRisk.TickValue <= 0
+            || symbolRisk.MinVolume <= 0
+            || symbolRisk.MaxVolume < symbolRisk.MinVolume
+            || symbolRisk.VolumeStep <= 0
+            || symbolRisk.MinStopDistance < 0
+            || symbolRisk.EstimatedMarginPerLotMoney <= 0)
+        {
+            throw new InvalidDataException(
+                "MT5 demo symbol risk context contains invalid broker metadata.");
+        }
+    }
+
     private BrokerOrderSnapshot MapOrder(Mt5DemoOrderWire wire)
     {
         ArgumentNullException.ThrowIfNull(wire);
@@ -510,6 +657,20 @@ public sealed class Mt5DemoExecutionBrokerGateway : IExecutionBrokerGateway
         }
 
         return tradeIntentId;
+    }
+
+    private static Guid DeterministicPositionId(
+        Guid tradeIntentId,
+        string brokerPositionId)
+    {
+        string identity = string.Join(
+            "|",
+            "mt5-demo-position-v1",
+            tradeIntentId.ToString("D"),
+            brokerPositionId);
+
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        return new Guid(hash.AsSpan(0, 16));
     }
 
     private Guid DeterministicOrphanId(
