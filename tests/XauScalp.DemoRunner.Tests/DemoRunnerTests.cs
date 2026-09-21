@@ -66,6 +66,23 @@ public sealed class DemoRunnerTests
     }
 
     [Fact]
+    public void EvidenceP95_UsesNearestRankWithoutAveragingAwayTail()
+    {
+        double p95 = DemoEvidenceBuilder.ComputeP95(
+            Enumerable.Range(1, 20)
+                .Select(static value => (double)value));
+
+        Assert.Equal(19, p95);
+    }
+
+    [Fact]
+    public void EvidenceP95_RejectsEmptySamples()
+    {
+        Assert.Throws<InvalidDataException>(
+            () => DemoEvidenceBuilder.ComputeP95([]));
+    }
+
+    [Fact]
     public void EvaluationTrigger_FirstReadyThenRespectsMinimumInterval()
     {
         var trigger = new DemoEvaluationTrigger(
