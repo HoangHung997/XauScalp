@@ -385,6 +385,50 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void FeedGap_PermanentlyLocksReadinessForCurrentEngineInstance()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        XauFeatureEngine engine = CreateReadyEngine(start);
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            state = engine.Update(
+                Tick(
+                    index + 1,
+                    start.AddMilliseconds(index * 500),
+                    100m + index * 0.01m));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+
+        engine.ObserveContext(
+            new FeedGapEvent(
+                ContractVersions.MarketEventV1,
+                start.AddSeconds(21),
+                sequenceId: 50,
+                dataSourceId: "mt5-test",
+                symbol: "XAUUSD",
+                brokerSymbol: "XAUUSD.G",
+                expectedSequenceId: 49,
+                observedSequenceId: 50,
+                FeedSequenceAnomalyKind.MissingRange));
+
+        state = engine.Update(
+            Tick(
+                51,
+                start.AddSeconds(22),
+                101m));
+
+        Assert.False(state.Readiness.RequiredP0Ready);
+        Assert.Contains(
+            "unresolved feed gap",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void FullWarmupWithAllExternalSources_SetsP0Readiness()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
