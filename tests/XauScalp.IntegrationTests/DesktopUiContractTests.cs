@@ -94,13 +94,11 @@ public sealed class DesktopUiContractTests
             StringComparison.OrdinalIgnoreCase);
 
         PropertyInfo property = Assert.Single(
-            typeof(DesktopSettingsViewModel)
-                .GetProperties()
-                .Where(
-                    property => string.Equals(
-                        property.Name,
-                        nameof(DesktopSettingsViewModel.LiveTradingAuthorized),
-                        StringComparison.Ordinal)));
+            typeof(DesktopSettingsViewModel).GetProperties(),
+            property => string.Equals(
+                property.Name,
+                nameof(DesktopSettingsViewModel.LiveTradingAuthorized),
+                StringComparison.Ordinal));
 
         Assert.False(property.CanWrite);
     }
