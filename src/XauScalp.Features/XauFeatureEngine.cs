@@ -7,7 +7,7 @@ namespace XauScalp.Features;
 
 public sealed class XauFeatureEngine : IXauFeatureEngine
 {
-    public const string EngineVersion = "xau-feature-engine-xsp005-v1";
+    public const string EngineVersion = "xau-feature-engine-xsp006-v1";
 
     private static readonly TimeSpan Window250Ms = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan Window500Ms = TimeSpan.FromMilliseconds(500);
@@ -23,6 +23,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
     private readonly CausalBarAggregator _barAggregator;
     private readonly RollingTickSeries _ticks = new();
     private readonly List<VelocitySample> _velocity500Ms = [];
+    private readonly CausalLiquidityTracker _liquidity = new();
 
     private SymbolSpecificationEvent? _symbolSpecificationEvent;
     private FeatureExternalContext? _externalContext;
@@ -104,11 +105,23 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
     private XauMarketState UpdateTick(TickEvent tick)
     {
         ValidateSymbolContinuity(tick);
-        _ = _barAggregator.Apply(tick);
+        IReadOnlyList<BarEvent> barEvents = _barAggregator.Apply(tick);
+
+        foreach (BarEvent barEvent in barEvents)
+        {
+            if (barEvent.UpdateKind == BarUpdateKind.Closed
+                && barEvent.Bar is ClosedBarState closed
+                && closed.Timeframe == BarTimeframe.M1)
+            {
+                _liquidity.ObserveClosedM1(closed);
+            }
+        }
+
         _ticks.Add(tick);
         _lastTick = tick;
 
         UpdateVelocityState(tick.TimestampUtc);
+        UpdateLiquidityState(tick);
 
         _lastState = BuildState(
             tick.TimestampUtc,
@@ -139,10 +152,11 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         NormalizedMarketTime normalizedTime = _clockNormalizer.Normalize(asOfUtc, brokerTimestamp);
         FeatureExternalContext? external = GetFreshExternalContext(asOfUtc);
 
-        var features = new List<NumericFeatureValue>(64);
+        var features = new List<NumericFeatureValue>(112);
         AddExecutionFeatures(features, lastTick, asOfUtc, normalizedTime, external);
         AddLiveM1Features(features, m1, lastTick, asOfUtc, external);
         AddMicrostructureFeatures(features, asOfUtc);
+        AddLiquidityFeatures(features, lastTick, asOfUtc, external);
 
         string[] missingRequirements = DetermineMissingRequirements(asOfUtc, external);
         bool tickHistoryReady = _ticks.IsWarm(asOfUtc, TimeSpan.FromSeconds(15));
@@ -179,7 +193,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
             mid,
             FeatureSchemaVersion,
             dataSourceId,
-            LiquiditySource.None,
+            LiquiditySource.Estimated,
             readiness,
             features.ToArray());
     }
@@ -525,6 +539,120 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         else
         {
             AddUnavailable(features, FeatureNames.DirectionFlipAgeMs, "ms", "no 500ms velocity direction flip observed");
+        }
+    }
+
+    private void UpdateLiquidityState(TickEvent tick)
+    {
+        FeatureExternalContext? external = GetFreshExternalContext(tick.TimestampUtc);
+
+        double? velocity500Ms = _ticks.TryVelocity(
+            tick.TimestampUtc,
+            Window500Ms,
+            out double currentVelocity)
+            ? currentVelocity
+            : null;
+
+        double? peakUp = null;
+        double? peakDown = null;
+        double? deceleration = null;
+
+        bool peakWarm = _ticks.IsWarm(tick.TimestampUtc, PeakWindow);
+        VelocitySample[] samples = _velocity500Ms
+            .Where(sample => sample.TimestampUtc > tick.TimestampUtc - PeakWindow
+                && sample.TimestampUtc <= tick.TimestampUtc)
+            .ToArray();
+
+        if (peakWarm && samples.Length > 0)
+        {
+            peakUp = samples.Max(static sample => Math.Max(sample.Velocity, 0));
+            peakDown = samples.Max(static sample => Math.Max(-sample.Velocity, 0));
+
+            double dominantPeak = Math.Max(peakUp.Value, peakDown.Value);
+            if (dominantPeak <= 0)
+            {
+                deceleration = 0;
+            }
+            else
+            {
+                double alignedCurrent = peakUp >= peakDown
+                    ? Math.Max(samples[^1].Velocity, 0)
+                    : Math.Max(-samples[^1].Velocity, 0);
+                deceleration = Math.Clamp(
+                    (dominantPeak - alignedCurrent) / dominantPeak,
+                    0,
+                    1);
+            }
+        }
+
+        double? flipAgeMs = _lastDirectionFlipAtUtc is DateTimeOffset flipAt
+            ? Math.Max(0, (tick.TimestampUtc - flipAt).TotalMilliseconds)
+            : null;
+
+        FormingBarSnapshot? m1 = _barAggregator.GetFormingSnapshot(
+            BarTimeframe.M1,
+            tick.TimestampUtc);
+
+        double wickBodyRatio = 0;
+        if (m1 is not null)
+        {
+            double open = decimal.ToDouble(m1.State.Open);
+            double high = decimal.ToDouble(m1.State.High);
+            double low = decimal.ToDouble(m1.State.Low);
+            double live = decimal.ToDouble(tick.Bid);
+            double totalWick =
+                Math.Max(0, high - Math.Max(open, live))
+                + Math.Max(0, Math.Min(open, live) - low);
+            double body = Math.Abs(live - open);
+            wickBodyRatio = body > 1e-12
+                ? totalWick / body
+                : totalWick > 0 ? 10 : 0;
+            wickBodyRatio = Math.Clamp(wickBodyRatio, 0, 10);
+        }
+
+        _liquidity.UpdateTick(
+            tick,
+            new LiquidityTickInputs(
+                external?.AtrM1,
+                velocity500Ms,
+                peakUp,
+                peakDown,
+                deceleration,
+                flipAgeMs,
+                wickBodyRatio));
+    }
+
+    private void AddLiquidityFeatures(
+        List<NumericFeatureValue> features,
+        TickEvent tick,
+        DateTimeOffset asOfUtc,
+        FeatureExternalContext? external)
+    {
+        decimal mid = (tick.Bid + tick.Ask) / 2m;
+        IReadOnlyList<LiquidityFeatureMetric> metrics = _liquidity.Snapshot(
+            asOfUtc,
+            mid,
+            external?.AtrM1);
+
+        foreach (LiquidityFeatureMetric metric in metrics)
+        {
+            if (metric.IsAvailable)
+            {
+                AddAvailable(
+                    features,
+                    metric.Name,
+                    metric.Value!.Value,
+                    metric.Unit,
+                    metric.ObservedAtUtc ?? asOfUtc);
+            }
+            else
+            {
+                AddUnavailable(
+                    features,
+                    metric.Name,
+                    metric.Unit,
+                    metric.UnavailableReason ?? "liquidity metric unavailable");
+            }
         }
     }
 
