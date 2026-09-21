@@ -333,7 +333,8 @@ public sealed class Mt5GatewayAndRecorderTests
 
             await using (var secondStore = new AppendOnlyJsonlMarketEventStore(datasetPath))
             {
-                long? resumeSequence = await secondStore.GetLastSequenceIdAsync();
+                long? resumeSequence =
+                    await secondStore.GetHighestSourceSequenceIdAsync();
                 Assert.Equal(2, resumeSequence);
 
                 var resumedSource = new Mt5MarketDataSource(
@@ -348,6 +349,49 @@ public sealed class Mt5GatewayAndRecorderTests
                 List<MarketEvent> restored = await ReadStoreAsync(secondStore);
                 Assert.Equal([1L, 2L, 3L], restored.Select(static item => item.SequenceId).ToArray());
             }
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task SourceCheckpoint_IgnoresGapMarkerSoInterruptedPairCanRecover()
+    {
+        string directory = CreateTempDirectory();
+        string datasetPath = Path.Combine(
+            directory,
+            "gap-interrupt.jsonl");
+
+        try
+        {
+            await using var store =
+                new AppendOnlyJsonlMarketEventStore(
+                    datasetPath);
+
+            await store.AppendAsync(
+                CreateTickEvent(
+                    100,
+                    3680.10m,
+                    3680.20m));
+
+            await store.AppendAsync(
+                new FeedGapEvent(
+                    ContractVersions.MarketEventV1,
+                    ReceivedAtUtc,
+                    sequenceId: 102,
+                    dataSourceId: "mt5-demo",
+                    symbol: "XAUUSD",
+                    brokerSymbol: "XAUUSD.G",
+                    expectedSequenceId: 101,
+                    observedSequenceId: 102,
+                    FeedSequenceAnomalyKind.MissingRange));
+
+            long? checkpoint =
+                await store.GetHighestSourceSequenceIdAsync();
+
+            Assert.Equal(100, checkpoint);
         }
         finally
         {
