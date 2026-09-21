@@ -356,6 +356,46 @@ public sealed class Mt5GatewayAndRecorderTests
     }
 
     [Fact]
+    public async Task ResumeInitialSequence_DetectsGapOnFirstNewFrame()
+    {
+        long brokerTime = DateTimeOffset
+            .Parse("2026-09-19T16:30:00Z")
+            .ToUnixTimeMilliseconds();
+
+        var source = new Mt5MarketDataSource(
+            new EnumerableMt5Transport(
+            [
+                Tick(
+                    102,
+                    brokerTime,
+                    3680.10m,
+                    3680.20m),
+            ]),
+            GatewayOptions,
+            new FixedClock(ReceivedAtUtc),
+            initialHighestSourceSequenceId: 100);
+
+        var events = new List<MarketEvent>();
+        await foreach (MarketEvent marketEvent in source.ReadEventsAsync())
+        {
+            events.Add(marketEvent);
+        }
+
+        Assert.Equal(2, events.Count);
+
+        FeedGapEvent gap = Assert.IsType<FeedGapEvent>(events[0]);
+        Assert.Equal(
+            FeedSequenceAnomalyKind.MissingRange,
+            gap.Kind);
+        Assert.Equal(101, gap.ExpectedSequenceId);
+        Assert.Equal(102, gap.ObservedSequenceId);
+
+        Assert.Equal(
+            102,
+            Assert.IsType<TickEvent>(events[1]).SequenceId);
+    }
+
+    [Fact]
     public async Task HighRateSyntheticBurst_PreservesEverySequence()
     {
         const int count = 5_000;
