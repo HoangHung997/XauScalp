@@ -1,8 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../XauScalp.App.Core/XauScalp.App.Core.csproj" />
     <ProjectReference Include="../XauScalp.Domain/XauScalp.Domain.csproj" />
   </ItemGroup>
 </Project>

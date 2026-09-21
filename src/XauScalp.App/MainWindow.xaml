@@ -1,0 +1,419 @@
+<Window x:Class="XauScalp.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="XauScalp"
+        Width="1100"
+        Height="780"
+        MinWidth="900"
+        MinHeight="650">
+  <DockPanel Margin="16">
+    <Border DockPanel.Dock="Top" Padding="12" BorderThickness="1" CornerRadius="4">
+      <StackPanel>
+        <TextBlock Text="XauScalp — Operational Console"
+                   FontSize="22"
+                   FontWeight="SemiBold" />
+        <TextBlock Text="{Binding Settings.OperatingModeStatus}"
+                   Margin="0,6,0,0" />
+        <TextBlock Text="{Binding Settings.LiveTradingStatus}"
+                   FontWeight="Bold"
+                   Margin="0,2,0,0" />
+      </StackPanel>
+    </Border>
+
+    <TabControl Margin="0,12,0,0">
+      <TabItem Header="Settings">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="12">
+            <GroupBox Header="Decision Models" Margin="0,0,0,10">
+              <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Primary model" VerticalAlignment="Center" />
+                <ComboBox Grid.Column="1"
+                          ItemsSource="{Binding Settings.DecisionModelOptions}"
+                          SelectedItem="{Binding Settings.PrimaryDecisionModel}"
+                          DisplayMemberPath="DisplayName"
+                          MinWidth="220" />
+
+                <CheckBox Grid.Row="1"
+                          Grid.ColumnSpan="2"
+                          Content="Enable shadow comparison"
+                          IsChecked="{Binding Settings.ShadowComparisonEnabled}"
+                          Margin="0,8,0,0" />
+
+                <TextBlock Grid.Row="2"
+                           Text="Shadow model"
+                           VerticalAlignment="Center"
+                           Margin="0,8,0,0" />
+                <ComboBox Grid.Row="2"
+                          Grid.Column="1"
+                          ItemsSource="{Binding Settings.DecisionModelOptions}"
+                          SelectedItem="{Binding Settings.ShadowDecisionModel}"
+                          DisplayMemberPath="DisplayName"
+                          MinWidth="220"
+                          Margin="0,8,0,0" />
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Header="JEV" Margin="0,0,0,10">
+              <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Secret reference (not secret value)"
+                           VerticalAlignment="Center" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding Settings.JevSecretReference}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="Pinned model/version"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding Settings.JevPinnedModelVersion}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="2"
+                           Text="Timeout (ms)"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="2"
+                         Grid.Column="1"
+                         Text="{Binding Settings.JevTimeoutMs}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="3"
+                           Text="Failure policy"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <ComboBox Grid.Row="3"
+                          Grid.Column="1"
+                          ItemsSource="{Binding Settings.JevFailurePolicies}"
+                          SelectedItem="{Binding Settings.JevFailurePolicy}"
+                          Margin="0,6,0,0" />
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Header="XAU Native AI" Margin="0,0,0,10">
+              <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Artifact path" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding Settings.XauNativeArtifactPath}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="Model version"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding Settings.XauNativeModelVersion}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="2"
+                           Text="Device"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <ComboBox Grid.Row="2"
+                          Grid.Column="1"
+                          ItemsSource="{Binding Settings.NativeDeviceOptions}"
+                          SelectedItem="{Binding Settings.XauNativeDevice}"
+                          Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="3"
+                           Text="Ready"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <CheckBox Grid.Row="3"
+                          Grid.Column="1"
+                          IsChecked="{Binding Settings.XauNativeReady}"
+                          IsEnabled="False"
+                          Margin="0,6,0,0" />
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Header="Broker / Data" Margin="0,0,0,10">
+              <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Broker symbol" VerticalAlignment="Center" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding Settings.BrokerSymbol}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="Data source ID"
+                           VerticalAlignment="Center"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding Settings.DataSourceId}"
+                         Margin="0,6,0,0" />
+              </Grid>
+            </GroupBox>
+
+            <GroupBox Header="Hard Risk Settings">
+              <Grid Margin="10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="180" />
+                  <ColumnDefinition Width="220" />
+                  <ColumnDefinition Width="180" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Max risk/trade %" />
+                <TextBox Grid.Column="1"
+                         Text="{Binding Settings.MaxRiskPerTradePct}" />
+                <TextBlock Grid.Column="2"
+                           Text="Max daily loss %"
+                           Margin="12,0,0,0" />
+                <TextBox Grid.Column="3"
+                         Text="{Binding Settings.MaxDailyLossPct}" />
+
+                <TextBlock Grid.Row="1"
+                           Text="Max daily loss money"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="1"
+                         Text="{Binding Settings.MaxDailyLossMoney}"
+                         Margin="0,6,0,0" />
+                <TextBlock Grid.Row="1"
+                           Grid.Column="2"
+                           Text="Max trades/day"
+                           Margin="12,6,0,0" />
+                <TextBox Grid.Row="1"
+                         Grid.Column="3"
+                         Text="{Binding Settings.MaxTradesPerDay}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="2"
+                           Text="Max concurrent positions"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="2"
+                         Grid.Column="1"
+                         Text="{Binding Settings.MaxConcurrentPositions}"
+                         Margin="0,6,0,0" />
+                <TextBlock Grid.Row="2"
+                           Grid.Column="2"
+                           Text="Max spread price"
+                           Margin="12,6,0,0" />
+                <TextBox Grid.Row="2"
+                         Grid.Column="3"
+                         Text="{Binding Settings.MaxSpreadPrice}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="3"
+                           Text="Max spread / ATR"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="3"
+                         Grid.Column="1"
+                         Text="{Binding Settings.MaxSpreadAtrRatio}"
+                         Margin="0,6,0,0" />
+                <TextBlock Grid.Row="3"
+                           Grid.Column="2"
+                           Text="Max slippage points"
+                           Margin="12,6,0,0" />
+                <TextBox Grid.Row="3"
+                         Grid.Column="3"
+                         Text="{Binding Settings.MaxSlippagePoints}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="4"
+                           Text="Max decision age ms"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="4"
+                         Grid.Column="1"
+                         Text="{Binding Settings.MaxDecisionAgeMs}"
+                         Margin="0,6,0,0" />
+                <TextBlock Grid.Row="4"
+                           Grid.Column="2"
+                           Text="Max feature age ms"
+                           Margin="12,6,0,0" />
+                <TextBox Grid.Row="4"
+                         Grid.Column="3"
+                         Text="{Binding Settings.MaxFeatureAgeMs}"
+                         Margin="0,6,0,0" />
+
+                <TextBlock Grid.Row="5"
+                           Text="Free margin min %"
+                           Margin="0,6,0,0" />
+                <TextBox Grid.Row="5"
+                         Grid.Column="1"
+                         Text="{Binding Settings.MinFreeMarginPct}"
+                         Margin="0,6,0,0" />
+                <TextBlock Grid.Row="5"
+                           Grid.Column="2"
+                           Text="News block before/after sec"
+                           Margin="12,6,0,0" />
+                <StackPanel Grid.Row="5"
+                            Grid.Column="3"
+                            Orientation="Horizontal"
+                            Margin="0,6,0,0">
+                  <TextBox Width="80"
+                           Text="{Binding Settings.HighImpactNewsBlockBeforeSec}" />
+                  <TextBlock Text=" / " VerticalAlignment="Center" />
+                  <TextBox Width="80"
+                           Text="{Binding Settings.HighImpactNewsBlockAfterSec}" />
+                </StackPanel>
+
+                <CheckBox Grid.Row="6"
+                          Content="Allow Long"
+                          IsChecked="{Binding Settings.AllowLong}"
+                          Margin="0,8,0,0" />
+                <CheckBox Grid.Row="6"
+                          Grid.Column="1"
+                          Content="Allow Short"
+                          IsChecked="{Binding Settings.AllowShort}"
+                          Margin="0,8,0,0" />
+                <TextBlock Grid.Row="6"
+                           Grid.Column="2"
+                           Grid.ColumnSpan="2"
+                           Text="Risk values are enforced by Hard Risk Engine; UI has no bypass."
+                           TextWrapping="Wrap"
+                           Margin="12,8,0,0" />
+              </Grid>
+            </GroupBox>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Operational Status">
+        <Grid Margin="16">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="220" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <TextBlock Text="Feed health" FontWeight="SemiBold" />
+          <TextBlock Grid.Column="1" Text="{Binding Status.FeedHealth}" />
+
+          <TextBlock Grid.Row="1"
+                     Text="Feature readiness / staleness"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="1"
+                     Grid.Column="1"
+                     Text="{Binding Status.FeatureReadiness}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="2"
+                     Text="Selected model"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="2"
+                     Grid.Column="1"
+                     Text="{Binding Status.SelectedModel}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="3"
+                     Text="Model version / latency"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,8,0,0">
+            <Run Text="{Binding Status.ModelVersion}" />
+            <Run Text=" / " />
+            <Run Text="{Binding Status.ModelLatency}" />
+          </TextBlock>
+
+          <TextBlock Grid.Row="4"
+                     Text="Model error"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="4"
+                     Grid.Column="1"
+                     Text="{Binding Status.ModelError}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="5"
+                     Text="Risk lock"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="5"
+                     Grid.Column="1"
+                     Text="{Binding Status.RiskLockState}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="6"
+                     Text="Broker connection"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="6"
+                     Grid.Column="1"
+                     Text="{Binding Status.BrokerConnection}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="7"
+                     Text="Current position"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="7"
+                     Grid.Column="1"
+                     Text="{Binding Status.CurrentPosition}"
+                     Margin="0,8,0,0" />
+
+          <TextBlock Grid.Row="8"
+                     Text="Data staleness"
+                     FontWeight="SemiBold"
+                     Margin="0,8,0,0" />
+          <TextBlock Grid.Row="8"
+                     Grid.Column="1"
+                     Text="{Binding Status.DataStaleness}"
+                     Margin="0,8,0,0" />
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
