@@ -316,7 +316,7 @@ public sealed class Mt5DemoFileExecutionTransport : IMt5DemoExecutionTransport
                     "MT5 demo execution event file is too large for fail-closed scan mode.");
             }
 
-            bytes = new byte[stream.Length];
+            bytes = new byte[(int)stream.Length];
             int offset = 0;
             while (offset < bytes.Length)
             {
