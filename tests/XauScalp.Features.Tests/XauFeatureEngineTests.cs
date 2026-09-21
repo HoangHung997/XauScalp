@@ -385,6 +385,124 @@ public sealed class XauFeatureEngineTests
     }
 
     [Fact]
+    public void BrokerOffsetWallClock_DoesNotCauseFalseStaleness()
+    {
+        DateTimeOffset start = Utc(12, 0, 0, 0);
+        var schedule = new MarketSessionSchedule(
+        [
+            new MarketSessionSegment(
+                0,
+                "all-day-a",
+                TimeOnly.MinValue,
+                new TimeOnly(12, 0)),
+            new MarketSessionSegment(
+                1,
+                "all-day-b",
+                new TimeOnly(12, 0),
+                TimeOnly.MinValue),
+        ]);
+
+        var clock = new BrokerClockConfiguration(
+            "broker-plus-two",
+            TimeOnly.MinValue,
+            [
+                new BrokerClockSegment(
+                    DateTimeOffset.MinValue,
+                    TimeSpan.FromHours(2)),
+            ]);
+
+        var engine = new XauFeatureEngine(
+            new XauFeatureEngineOptions(
+                clock,
+                schedule,
+                externalContextMaxAge:
+                    TimeSpan.FromMinutes(5)));
+
+        engine.ObserveContext(
+            new SymbolSpecificationEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                null,
+                0,
+                "mt5-test",
+                "XAUUSD",
+                "XAUUSD.G",
+                new SymbolSpecification(
+                    2,
+                    0.01m,
+                    0.01m,
+                    1.25m,
+                    100m,
+                    0.01m,
+                    100m,
+                    0.01m,
+                    0.50m)));
+
+        engine.ObserveContext(
+            new ConnectionStatusEvent(
+                ContractVersions.MarketEventV1,
+                start,
+                null,
+                0,
+                "mt5-test",
+                "XAUUSD",
+                "XAUUSD.G",
+                MarketConnectionState.Connected,
+                "test"));
+
+        engine.SetExternalContext(
+            new FeatureExternalContext(
+                start,
+                atrM1: 2,
+                estimatedLatencyMs: 12,
+                estimatedSlippagePoints: 3,
+                newsDistanceBeforeSec: 3_600,
+                newsDistanceAfterSec: 3_600,
+                isHighImpactNewsWindow: false));
+
+        XauMarketState? state = null;
+        for (int index = 0; index <= 40; index++)
+        {
+            DateTimeOffset ingestion =
+                start.AddMilliseconds(index * 500);
+            DateTimeOffset brokerWallClock =
+                new(
+                    ingestion.Year,
+                    ingestion.Month,
+                    ingestion.Day,
+                    ingestion.Hour + 2,
+                    ingestion.Minute,
+                    ingestion.Second,
+                    ingestion.Millisecond,
+                    TimeSpan.Zero);
+
+            state = engine.Update(
+                new TickEvent(
+                    ContractVersions.MarketEventV1,
+                    ingestion,
+                    brokerWallClock,
+                    index + 1,
+                    "mt5-test",
+                    "XAUUSD",
+                    "XAUUSD.G",
+                    100m + index * 0.01m,
+                    100.20m + index * 0.01m,
+                    null,
+                    1,
+                    TickFlags.Bid
+                        | TickFlags.Ask
+                        | TickFlags.Volume));
+        }
+
+        Assert.NotNull(state);
+        Assert.True(state!.Readiness.RequiredP0Ready);
+        Assert.DoesNotContain(
+            "stale broker tick",
+            state.Readiness.MissingRequirements,
+            StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void OldBrokerTimestamp_FailsClosedEvenWhenIngestionTimestampIsFresh()
     {
         DateTimeOffset start = Utc(12, 0, 0, 0);
