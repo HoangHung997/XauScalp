@@ -143,6 +143,11 @@ internal static class Program
             new DemoObservationJsonlStore(
                 observationPath);
 
+        var riskSynchronizer = new DemoRiskLedgerSynchronizer(
+            riskLedger,
+            ownership,
+            observations);
+
         ExecutionReconciliationReport startupReconciliation =
             await executionEngine.ReconcileAsync(
                 cancellationToken).ConfigureAwait(false);
@@ -177,11 +182,8 @@ internal static class Program
             await brokerGateway.QueryDemoContextAsync(
                 cancellationToken).ConfigureAwait(false);
 
-        await EnsureAndSyncRiskLedgerAsync(
-            riskLedger,
+        await riskSynchronizer.EnsureAndSyncAsync(
             startupContext,
-            ownership,
-            observations,
             cancellationToken).ConfigureAwait(false);
 
         LoadedNativeArtifact loadedNative =
@@ -352,11 +354,8 @@ internal static class Program
                 await brokerGateway.QueryDemoContextAsync(
                     cancellationToken).ConfigureAwait(false);
 
-            await EnsureAndSyncRiskLedgerAsync(
-                riskLedger,
+            await riskSynchronizer.EnsureAndSyncAsync(
                 brokerContext,
-                ownership,
-                observations,
                 cancellationToken).ConfigureAwait(false);
 
             DemoRuntimeEvaluation evaluation =
@@ -375,34 +374,10 @@ internal static class Program
                 + $"risk={evaluation.RiskDecision?.ReasonCode ?? "n/a"} "
                 + $"exec={evaluation.ExecutionResult?.State.ToString() ?? "n/a"}");
 
-            if (evaluation.ExecutionResult is ExecutionResult result
-                && result.State is OrderLifecycleState.Failed
-                    or OrderLifecycleState.UnknownNeedsReconciliation)
-            {
-                await riskLedger.RecordExecutionFailureAsync(
-                    DateTimeOffset.UtcNow,
-                    ownership,
-                    cancellationToken).ConfigureAwait(false);
-
-                await observations.AppendAsync(
-                    new DemoObservation(
-                        DemoObservationKind.ExecutionFailureRecorded,
-                        DateTimeOffset.UtcNow,
-                        state.MarketStateId,
-                        evaluation.ComparisonId,
-                        evaluation.AuthoritativeDecision?.DecisionId,
-                        evaluation.RiskDecision?.RiskDecisionId,
-                        evaluation.TradePlan?.TradeIntentId,
-                        result.State.ToString(),
-                        evaluation.RiskDecision?.ReasonCode,
-                        result.BrokerOrderId,
-                        result.BrokerDealId,
-                        BrokerPositionId: null,
-                        result.Latency.TotalMilliseconds,
-                        result.SlippagePoints,
-                        result.Message),
-                    cancellationToken).ConfigureAwait(false);
-            }
+            await riskSynchronizer.RecordExecutionFailureAsync(
+                state,
+                evaluation,
+                cancellationToken).ConfigureAwait(false);
 
             if (configuration.StopAfterFirstExecution
                 && evaluation.Outcome
@@ -447,89 +422,6 @@ internal static class Program
         }
 
         return count;
-    }
-
-    private static async Task EnsureAndSyncRiskLedgerAsync(
-        RiskLedgerJsonlStore riskLedger,
-        Mt5DemoBrokerContextSnapshot context,
-        PositionOwnership ownership,
-        DemoObservationJsonlStore observations,
-        CancellationToken cancellationToken)
-    {
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        OwnedRiskLedgerSnapshot snapshot =
-            riskLedger.GetSnapshot(now);
-
-        if (!snapshot.IsReady)
-        {
-            DateOnly currentUtcDate =
-                DateOnly.FromDateTime(now.UtcDateTime);
-
-            Mt5DemoClosedTradeWire[] currentDayBrokerCloses =
-                context.ClosedTrades
-                .Where(
-                    item => DateOnly.FromDateTime(
-                        DateTimeOffset
-                            .FromUnixTimeMilliseconds(
-                                item.ClosedAtUnixMs)
-                            .UtcDateTime)
-                        == currentUtcDate)
-                .ToArray();
-
-            if (currentDayBrokerCloses.Length > 0)
-            {
-                throw new InvalidOperationException(
-                    "Risk ledger is not initialized for the current UTC trading day, "
-                    + "but owned MT5 demo trades already closed today. "
-                    + "Start-equity cannot be reconstructed safely; no new trade is allowed.");
-            }
-
-            await riskLedger.StartTradingDayAsync(
-                now,
-                context.Portfolio.Equity,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        foreach (Mt5DemoClosedTradeWire closed in context.ClosedTrades)
-        {
-            DateTimeOffset closedAt =
-                DateTimeOffset.FromUnixTimeMilliseconds(
-                    closed.ClosedAtUnixMs);
-
-            bool added =
-                await riskLedger.RecordClosedTradeOnceAsync(
-                    closed.TradeIntentId,
-                    closedAt,
-                    closed.RealizedPnlMoney,
-                    closed.CommissionCostMoney,
-                    ownership,
-                    cancellationToken).ConfigureAwait(false);
-
-            if (!added)
-            {
-                continue;
-            }
-
-            await observations.AppendAsync(
-                new DemoObservation(
-                    DemoObservationKind.RiskLedgerSync,
-                    now,
-                    MarketStateId: null,
-                    ComparisonId: null,
-                    DecisionId: null,
-                    RiskDecisionId: null,
-                    closed.TradeIntentId,
-                    Outcome: "closed-trade-synced",
-                    ReasonCode: null,
-                    BrokerOrderId: null,
-                    BrokerDealId: null,
-                    BrokerPositionId: null,
-                    ModelLatencyMs: null,
-                    SlippagePoints: null,
-                    Message:
-                        $"pnl={closed.RealizedPnlMoney};commission={closed.CommissionCostMoney}"),
-                cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private static void WriteLastReadyState(
