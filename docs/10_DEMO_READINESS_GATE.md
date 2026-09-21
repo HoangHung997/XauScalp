@@ -23,6 +23,18 @@ CI verifies:
 
 The CI evidence artifact is intentionally named/reported as rehearsal, never as broker-demo evidence.
 
+## Real MT5 demo execution path
+
+The repository includes a separate demo-only execution path for this gate:
+
+- MQL5: `mt5/XauScalpDemoExecutionBridge.mq5`;
+- C#: `Mt5DemoExecutionBrokerGateway` + `Mt5DemoFileExecutionTransport`;
+- protocol: `mt5/protocol/MT5_DEMO_EXECUTION_PROTOCOL.md`.
+
+The MQL5 EA refuses non-demo account mode. This is intentionally separate from the market-data-only `XauScalpMarketBridge.mq5`.
+
+GitHub CI cannot compile MQL5 or connect to a broker. Successful MetaEditor compilation and actual MT5 demo behavior therefore belong to the external evidence pack.
+
 ## Required external broker-demo evidence
 
 Run XauScalp against an MT5 **demo** account and produce a JSON manifest matching
@@ -38,7 +50,8 @@ Required evidence:
 - replay determinism pass;
 - JEV/XAU Native primary-shadow pass;
 - risk-engine pass;
-- one demo execution identifier;
+- successful MetaEditor compile of the demo execution bridge on the target MT5 installation;
+- one demo execution identifier produced through Hard Risk -> ExecutionEngine -> MT5 demo adapter (not a hand-crafted broker command);
 - restart/reconnect pass with broker state present;
 - model outage pass;
 - stale-data pass;
