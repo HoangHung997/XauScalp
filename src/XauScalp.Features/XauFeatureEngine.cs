@@ -32,6 +32,7 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
     private TickEvent? _lastTick;
     private XauMarketState? _lastState;
     private MarketConnectionState? _connectionState;
+    private bool _feedGapDetected;
     private int? _lastVelocityDirection;
     private DateTimeOffset? _lastDirectionFlipAtUtc;
 
@@ -91,6 +92,9 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
                 break;
 
             case FeedGapEvent:
+                _feedGapDetected = true;
+                break;
+
             case BarEvent:
             case TickEvent:
                 break;
@@ -837,6 +841,11 @@ public sealed class XauFeatureEngine : IXauFeatureEngine
         if (_connectionState != MarketConnectionState.Connected)
         {
             missing.Add("market data connection");
+        }
+
+        if (_feedGapDetected)
+        {
+            missing.Add("unresolved feed gap");
         }
 
         return missing.ToArray();
